@@ -1,0 +1,91 @@
+module params_comments_test
+import std
+import string
+import tokenizer
+
+// Tasklet 6, suite 3: bind parameters, comments, the UTF-8 BOM,
+// and non-ASCII input. Offsets are BYTE offsets throughout:
+// "café" is 4 characters but a 5-byte TK_ID.
+
+int failures = 0
+
+// Expectations are one string of "NAME:START:LEN" triples separated
+// by spaces ("" means: no tokens). Arrays cannot be passed as
+// literals to a call in Come, so a spec string is the compact form.
+void expect(string sql, string spec) {
+    var tz = tokenizer.create()
+    tz.open(sql)
+    string parts[] = spec.split(" ")
+    int want = parts.length()
+    if (spec.length() == 0) { want = 0 }
+    int i = 0
+    while (tz.next()) {
+        if (i >= want) {
+            std.out.printf("FAIL '%s': extra token %s @%d +%d\n", sql, tokenizer.token_name(tz.typ()), tz.start(), tz.len())
+            failures = failures + 1
+            break
+        }
+        string f[] = parts[i].split(":")
+        string tn = tokenizer.token_name(tz.typ())
+        if (tn.cmp(f[0]) != 0 || tz.start() != int(f[1].tol()) || tz.len() != int(f[2].tol())) {
+            std.out.printf("FAIL '%s' tok %d: got %s @%d +%d, want %s\n", sql, i, tn, tz.start(), tz.len(), parts[i])
+            failures = failures + 1
+        }
+        i = i + 1
+    }
+    if (i != want) {
+        std.out.printf("FAIL '%s': got %d tokens, want %d\n", sql, i, want)
+        failures = failures + 1
+    }
+    tz.destroy()
+}
+int main() {
+    // Bind parameters.
+    expect("?", "TK_VARIABLE:0:1")
+    expect("?123", "TK_VARIABLE:0:4")
+    expect("?0", "TK_VARIABLE:0:2")
+    expect("?abc", "TK_VARIABLE:0:1 TK_ID:1:3")
+    expect(":name", "TK_VARIABLE:0:5")
+    expect("@x", "TK_VARIABLE:0:2")
+    expect("#1", "TK_VARIABLE:0:2")
+    expect("$var", "TK_VARIABLE:0:4")
+    expect("$a::b", "TK_VARIABLE:0:5")
+    expect(":a:b", "TK_VARIABLE:0:2 TK_VARIABLE:2:2")
+
+    // A prefix with no name is TK_ILLEGAL.
+    expect("$", "TK_ILLEGAL:0:1")
+    expect(":", "TK_ILLEGAL:0:1")
+    expect("@", "TK_ILLEGAL:0:1")
+
+    // Tcl-style $name(...) -- default SQLite builds include it.
+    expect("$fn(x)", "TK_VARIABLE:0:6")
+    expect("$fn(x", "TK_ILLEGAL:0:5")
+    expect("$fn(a b)", "TK_ILLEGAL:0:5 TK_SPACE:5:1 TK_ID:6:1 TK_RP:7:1")
+    expect("$a(b)c", "TK_VARIABLE:0:5 TK_ID:5:1")
+
+    // Comments.
+    expect("-- note\nSELECT", "TK_COMMENT:0:7 TK_SPACE:7:1 TK_SELECT:8:6")
+    expect("--x", "TK_COMMENT:0:3")
+    expect("--\n", "TK_COMMENT:0:2 TK_SPACE:2:1")
+    expect("/* c */", "TK_COMMENT:0:7")
+    expect("/* c", "TK_COMMENT:0:4")
+    expect("/*/", "TK_COMMENT:0:3")
+    expect("/**/", "TK_COMMENT:0:4")
+    expect("a/b", "TK_ID:0:1 TK_SLASH:1:1 TK_ID:2:1")
+    // "/*" at end of input is a slash token, not a comment:
+    // the C code requires a byte after the '*'.
+    expect("x /*", "TK_ID:0:1 TK_SPACE:1:1 TK_SLASH:2:1 TK_STAR:3:1")
+    expect("SELECT/*x*/1", "TK_SELECT:0:6 TK_COMMENT:6:5 TK_INTEGER:11:1")
+
+    // UTF-8 BOM is TK_SPACE of 3 bytes.
+    expect("\uFEFFSELECT", "TK_SPACE:0:3 TK_SELECT:3:6")
+
+    // Non-ASCII: identifiers and strings measured in bytes.
+    expect("café", "TK_ID:0:5")
+    expect("αβ", "TK_ID:0:4")
+    expect("'a😀b'", "TK_STRING:0:8")
+    expect("SELECT α FROM t", "TK_SELECT:0:6 TK_SPACE:6:1 TK_ID:7:2 TK_SPACE:9:1 TK_FROM:10:4 TK_SPACE:14:1 TK_ID:15:1")
+
+    if (failures == 0) { std.out.printf("PASS: 03-params-comments\n") }
+    return failures
+}

@@ -1,0 +1,14 @@
+module main
+import std
+import tokenizer
+
+int main() {
+    string sql = "SELECT a, 42 FROM t WHERE x >= 1.5e2 AND s = 'it''s' -- done\n"
+    var tz = tokenizer.create()
+    tz.open(sql)
+    while (tz.next()) {
+        std.out.printf("%3d @%2d +%2d  %-12s '%s'\n", tz.typ(), tz.start(), tz.len(), tokenizer.token_name(tz.typ()), tz.text())
+    }
+    tz.destroy()
+    return 0
+}

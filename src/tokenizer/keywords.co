@@ -1,0 +1,180 @@
+module tokenizer
+
+import string
+
+// keywords.co -- sqlite3KeywordCode() for module tokenizer.
+
+// ----------------------------------------------------------------
+// keyword_code -- sqlite3KeywordCode(): the TK_* code for a word,
+// case-insensitively, or TK_ID when the word is not a keyword.
+// SQLite uses a generated perfect hash (keywordhash.h); Come has no
+// const tables, so this builds a map{string,int} per call -- correct,
+// not fast. See docs/COME_GAPS.md #4.
+
+
+// TK_ID is declared in tokens.co, but Come codegen resolves
+// constants per-file, so this file carries its own copy of the one
+// constant it uses (same SQLite value; see docs/COME_GAPS.md #6).
+const KW_FALLBACK_ID = 60
+
+int keyword_code(string word) {
+    map{string, int} m
+// BEGIN GENERATED: keyword-map
+    m["abort"] = 27
+    m["action"] = 28
+    m["add"] = 164
+    m["after"] = 29
+    m["all"] = 136
+    m["alter"] = 163
+    m["always"] = 97
+    m["analyze"] = 30
+    m["and"] = 44
+    m["as"] = 24
+    m["asc"] = 31
+    m["attach"] = 32
+    m["autoincrement"] = 127
+    m["before"] = 33
+    m["begin"] = 5
+    m["between"] = 49
+    m["by"] = 34
+    m["cascade"] = 35
+    m["case"] = 158
+    m["cast"] = 36
+    m["check"] = 125
+    m["collate"] = 114
+    m["column"] = 61
+    m["commit"] = 10
+    m["conflict"] = 37
+    m["constraint"] = 120
+    m["create"] = 17
+    m["cross"] = 119
+    m["current"] = 86
+    m["current_date"] = 101
+    m["current_time"] = 101
+    m["current_timestamp"] = 101
+    m["database"] = 38
+    m["default"] = 121
+    m["deferrable"] = 132
+    m["deferred"] = 7
+    m["delete"] = 129
+    m["desc"] = 39
+    m["detach"] = 40
+    m["distinct"] = 141
+    m["do"] = 62
+    m["drop"] = 134
+    m["each"] = 41
+    m["else"] = 161
+    m["end"] = 11
+    m["escape"] = 59
+    m["except"] = 137
+    m["exclude"] = 92
+    m["exclusive"] = 9
+    m["exists"] = 20
+    m["explain"] = 2
+    m["fail"] = 42
+    m["filter"] = 167
+    m["first"] = 84
+    m["following"] = 87
+    m["for"] = 63
+    m["foreign"] = 133
+    m["from"] = 143
+    m["full"] = 119
+    m["generated"] = 96
+    m["glob"] = 48
+    m["group"] = 147
+    m["groups"] = 93
+    m["having"] = 148
+    m["if"] = 18
+    m["ignore"] = 64
+    m["immediate"] = 8
+    m["in"] = 50
+    m["index"] = 162
+    m["indexed"] = 117
+    m["initially"] = 65
+    m["inner"] = 119
+    m["insert"] = 128
+    m["instead"] = 66
+    m["intersect"] = 138
+    m["into"] = 152
+    m["is"] = 45
+    m["isnull"] = 51
+    m["join"] = 144
+    m["key"] = 68
+    m["last"] = 85
+    m["left"] = 119
+    m["like"] = 48
+    m["limit"] = 149
+    m["match"] = 47
+    m["materialized"] = 98
+    m["natural"] = 119
+    m["no"] = 67
+    m["not"] = 19
+    m["nothing"] = 153
+    m["notnull"] = 52
+    m["null"] = 122
+    m["nulls"] = 83
+    m["of"] = 69
+    m["offset"] = 70
+    m["on"] = 116
+    m["or"] = 43
+    m["order"] = 146
+    m["others"] = 94
+    m["outer"] = 119
+    m["over"] = 166
+    m["partition"] = 88
+    m["plan"] = 4
+    m["pragma"] = 71
+    m["preceding"] = 89
+    m["primary"] = 123
+    m["query"] = 3
+    m["raise"] = 72
+    m["range"] = 90
+    m["recursive"] = 73
+    m["references"] = 126
+    m["regexp"] = 48
+    m["reindex"] = 99
+    m["release"] = 14
+    m["rename"] = 100
+    m["replace"] = 74
+    m["restrict"] = 75
+    m["returning"] = 151
+    m["right"] = 119
+    m["rollback"] = 12
+    m["row"] = 76
+    m["rows"] = 77
+    m["savepoint"] = 13
+    m["select"] = 139
+    m["set"] = 131
+    m["table"] = 16
+    m["temp"] = 21
+    m["temporary"] = 21
+    m["then"] = 160
+    m["ties"] = 95
+    m["to"] = 15
+    m["transaction"] = 6
+    m["trigger"] = 78
+    m["unbounded"] = 91
+    m["union"] = 135
+    m["unique"] = 124
+    m["update"] = 130
+    m["using"] = 145
+    m["vacuum"] = 79
+    m["values"] = 140
+    m["view"] = 80
+    m["virtual"] = 81
+    m["when"] = 159
+    m["where"] = 150
+    m["window"] = 165
+    m["with"] = 82
+    m["without"] = 26
+// END GENERATED: keyword-map
+    string lw = word.lower()
+    ERR.clear()
+    int v = m[lw]
+    if (ERR.set()) {
+        ERR.clear()
+        return KW_FALLBACK_ID
+    }
+    return v
+}
+

@@ -1,0 +1,97 @@
+module literals_test
+import std
+import string
+import tokenizer
+
+// Tasklet 6, suite 2: string/blob/numeric literals and quoted
+// identifiers, including unterminated forms.
+
+int failures = 0
+
+// Expectations are one string of "NAME:START:LEN" triples separated
+// by spaces ("" means: no tokens). Arrays cannot be passed as
+// literals to a call in Come, so a spec string is the compact form.
+void expect(string sql, string spec) {
+    var tz = tokenizer.create()
+    tz.open(sql)
+    string parts[] = spec.split(" ")
+    int want = parts.length()
+    if (spec.length() == 0) { want = 0 }
+    int i = 0
+    while (tz.next()) {
+        if (i >= want) {
+            std.out.printf("FAIL '%s': extra token %s @%d +%d\n", sql, tokenizer.token_name(tz.typ()), tz.start(), tz.len())
+            failures = failures + 1
+            break
+        }
+        string f[] = parts[i].split(":")
+        string tn = tokenizer.token_name(tz.typ())
+        if (tn.cmp(f[0]) != 0 || tz.start() != int(f[1].tol()) || tz.len() != int(f[2].tol())) {
+            std.out.printf("FAIL '%s' tok %d: got %s @%d +%d, want %s\n", sql, i, tn, tz.start(), tz.len(), parts[i])
+            failures = failures + 1
+        }
+        i = i + 1
+    }
+    if (i != want) {
+        std.out.printf("FAIL '%s': got %d tokens, want %d\n", sql, i, want)
+        failures = failures + 1
+    }
+    tz.destroy()
+}
+int main() {
+    string dq = sprintf("%c", '"')
+    // String literals: '' is an escaped quote, not the end.
+    expect("'abc'", "TK_STRING:0:5")
+    expect("'it''s'", "TK_STRING:0:7")
+    expect("''", "TK_STRING:0:2")
+    expect("'a''b''c'", "TK_STRING:0:9")
+    expect("'a\nb'", "TK_STRING:0:5")
+    expect("'a", "TK_ILLEGAL:0:2")
+    expect("'", "TK_ILLEGAL:0:1")
+
+    // Quoted identifiers: "...", `...`, [...]; all TK_ID.
+    expect(dq + "my col" + dq, "TK_ID:0:8")
+    expect("`weird`", "TK_ID:0:7")
+    expect(dq + "a" + dq + dq + "b" + dq, "TK_ID:0:6")
+    expect("[a b]", "TK_ID:0:5")
+    expect("[]", "TK_ID:0:2")
+    expect("[a", "TK_ILLEGAL:0:2")
+    expect(dq + "unterm", "TK_ILLEGAL:0:7")
+
+    // Integers and floats.
+    expect("42", "TK_INTEGER:0:2")
+    expect("4.25", "TK_FLOAT:0:4")
+    expect(".5", "TK_FLOAT:0:2")
+    expect("5.", "TK_FLOAT:0:2")
+    expect("1e10", "TK_FLOAT:0:4")
+    expect("1E+10", "TK_FLOAT:0:5")
+    expect("1.5e-2", "TK_FLOAT:0:6")
+    expect("0x1F", "TK_INTEGER:0:4")
+    expect("0XaB", "TK_INTEGER:0:4")
+
+    // Numbers that touch identifier characters are one TK_ILLEGAL.
+    expect("0x", "TK_ILLEGAL:0:2")
+    expect("0xG", "TK_ILLEGAL:0:3")
+    expect("123abc", "TK_ILLEGAL:0:6")
+    expect("1e", "TK_ILLEGAL:0:2")
+    expect("1e+", "TK_ILLEGAL:0:2 TK_PLUS:2:1")
+
+    // Digit separators make TK_QNUMBER; placement is not the
+    // tokenizer's problem (the parser dequotes and validates).
+    expect("1_000", "TK_QNUMBER:0:5")
+    expect("0xAB_CD", "TK_QNUMBER:0:7")
+    expect("1_2.3_4", "TK_QNUMBER:0:7")
+    expect("1__2", "TK_QNUMBER:0:4")
+
+    // Blob literals: hex only, an even digit count.
+    expect("x'AB'", "TK_BLOB:0:5")
+    expect("X'ab12'", "TK_BLOB:0:7")
+    expect("x'ABC'", "TK_ILLEGAL:0:6")
+    expect("x'AG'", "TK_ILLEGAL:0:5")
+    expect("x'", "TK_ILLEGAL:0:2")
+    expect("x'AB", "TK_ILLEGAL:0:4")
+    expect("x''", "TK_BLOB:0:3")
+
+    if (failures == 0) { std.out.printf("PASS: 02-literals\n") }
+    return failures
+}

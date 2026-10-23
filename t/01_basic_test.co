@@ -1,0 +1,122 @@
+module basic_test
+import std
+import string
+import tokenizer
+
+// Tasklet 6, suite 1: empty/whitespace input, keywords and
+// identifiers, operators and punctuation, and numeric anchors for
+// the token-code values themselves (from SQLite's parse.h -- see
+// docs/TOKEN_MAP.md). Expectations in the other suites use token
+// names; here a sample is also checked against raw SQLite values
+// so the name table cannot drift silently.
+
+int failures = 0
+
+// Expectations are one string of "NAME:START:LEN" triples separated
+// by spaces ("" means: no tokens). Arrays cannot be passed as
+// literals to a call in Come, so a spec string is the compact form.
+void expect(string sql, string spec) {
+    var tz = tokenizer.create()
+    tz.open(sql)
+    string parts[] = spec.split(" ")
+    int want = parts.length()
+    if (spec.length() == 0) { want = 0 }
+    int i = 0
+    while (tz.next()) {
+        if (i >= want) {
+            std.out.printf("FAIL '%s': extra token %s @%d +%d\n", sql, tokenizer.token_name(tz.typ()), tz.start(), tz.len())
+            failures = failures + 1
+            break
+        }
+        string f[] = parts[i].split(":")
+        string tn = tokenizer.token_name(tz.typ())
+        if (tn.cmp(f[0]) != 0 || tz.start() != int(f[1].tol()) || tz.len() != int(f[2].tol())) {
+            std.out.printf("FAIL '%s' tok %d: got %s @%d +%d, want %s\n", sql, i, tn, tz.start(), tz.len(), parts[i])
+            failures = failures + 1
+        }
+        i = i + 1
+    }
+    if (i != want) {
+        std.out.printf("FAIL '%s': got %d tokens, want %d\n", sql, i, want)
+        failures = failures + 1
+    }
+    tz.destroy()
+}
+
+void anchor(string sql, int want_typ, int want_len) {
+    var tz = tokenizer.create()
+    tz.open(sql)
+    if (!tz.next() || tz.typ() != want_typ || tz.len() != want_len) {
+        std.out.printf("FAIL anchor '%s': got %d +%d, want %d +%d\n", sql, tz.typ(), tz.len(), want_typ, want_len)
+        failures = failures + 1
+    }
+    tz.destroy()
+}
+
+int main() {
+    // Empty and whitespace-only input.
+    expect("", "")
+    expect("   \t\n  ", "TK_SPACE:0:7")
+    expect(" \v ", "TK_SPACE:0:3")
+    expect("\v", "TK_ILLEGAL:0:1")
+
+    // Keywords are case-insensitive; near-misses are identifiers.
+    expect("SELECT 1", "TK_SELECT:0:6 TK_SPACE:6:1 TK_INTEGER:7:1")
+    expect("select", "TK_SELECT:0:6")
+    expect("SeLeCt x", "TK_SELECT:0:6 TK_SPACE:6:1 TK_ID:7:1")
+    expect("selection", "TK_ID:0:9")
+    expect("select1", "TK_ID:0:7")
+    expect("fromage", "TK_ID:0:7")
+    expect("CURRENT_TIMESTAMP", "TK_CTIME_KW:0:17")
+    expect("NATURAL", "TK_JOIN_KW:0:7")
+    expect("GLOB", "TK_LIKE_KW:0:4")
+    expect("ISNULL", "TK_ISNULL:0:6")
+    expect("NOTNULL", "TK_NOTNULL:0:7")
+    expect("TEMPORARY", "TK_TEMP:0:9")
+    // WITHIN is in mkkeywordhash's table but feature-gated out of a
+    // default build: SQLite returns TK_ID. Regression anchor.
+    expect("WITHIN", "TK_ID:0:6")
+    expect("END;", "TK_END:0:3 TK_SEMI:3:1")
+
+    // Identifier shapes.
+    expect("a", "TK_ID:0:1")
+    expect("_x", "TK_ID:0:2")
+    expect("z9", "TK_ID:0:2")
+    expect("$abc", "TK_VARIABLE:0:4")
+
+    // Operators and punctuation.
+    expect("a>=b", "TK_ID:0:1 TK_GE:1:2 TK_ID:3:1")
+    expect("a<>b", "TK_ID:0:1 TK_NE:1:2 TK_ID:3:1")
+    expect("a!=b", "TK_ID:0:1 TK_NE:1:2 TK_ID:3:1")
+    expect("a==b", "TK_ID:0:1 TK_EQ:1:2 TK_ID:3:1")
+    expect("a|b", "TK_ID:0:1 TK_BITOR:1:1 TK_ID:2:1")
+    expect("a||b", "TK_ID:0:1 TK_CONCAT:1:2 TK_ID:3:1")
+    expect("a->b", "TK_ID:0:1 TK_PTR:1:2 TK_ID:3:1")
+    expect("a->>b", "TK_ID:0:1 TK_PTR:1:3 TK_ID:4:1")
+    expect("a<<2", "TK_ID:0:1 TK_LSHIFT:1:2 TK_INTEGER:3:1")
+    expect("a>>2", "TK_ID:0:1 TK_RSHIFT:1:2 TK_INTEGER:3:1")
+    expect("~a", "TK_BITNOT:0:1 TK_ID:1:1")
+    expect("a%b", "TK_ID:0:1 TK_REM:1:1 TK_ID:2:1")
+    expect("a&b", "TK_ID:0:1 TK_BITAND:1:1 TK_ID:2:1")
+    expect("(a,b);", "TK_LP:0:1 TK_ID:1:1 TK_COMMA:2:1 TK_ID:3:1 TK_RP:4:1 TK_SEMI:5:1")
+    expect("!x", "TK_ILLEGAL:0:1 TK_ID:1:1")
+    expect("^", "TK_ILLEGAL:0:1")
+    expect("a.b", "TK_ID:0:1 TK_DOT:1:1 TK_ID:2:1")
+    expect("a.5", "TK_ID:0:1 TK_FLOAT:1:2")
+
+    // Raw SQLite values (parse.h) for a sample of tokens.
+    anchor(";", 1, 1)
+    anchor("SELECT", 139, 6)
+    anchor("FROM", 143, 4)
+    anchor(" ", 184, 1)
+    anchor("x", 60, 1)
+    anchor("42", 156, 2)
+    anchor("1.5", 154, 3)
+    anchor("?", 157, 1)
+    anchor("'s'", 118, 3)
+    anchor("--c", 185, 3)
+    anchor("!", 186, 1)
+
+    if (failures == 0) { std.out.printf("PASS: 01-basic\n") }
+    return failures
+}

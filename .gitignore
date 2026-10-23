@@ -1,0 +1,6 @@
+.ccache/
+build/
+tools/sqlite3.c
+tools/difftest
+tools/corpus.h
+tools/__pycache__/

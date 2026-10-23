@@ -1,0 +1,1485 @@
+{
+ "tokens": [
+  {
+   "name": "TK_SEMI",
+   "value": 1
+  },
+  {
+   "name": "TK_EXPLAIN",
+   "value": 2
+  },
+  {
+   "name": "TK_QUERY",
+   "value": 3
+  },
+  {
+   "name": "TK_PLAN",
+   "value": 4
+  },
+  {
+   "name": "TK_BEGIN",
+   "value": 5
+  },
+  {
+   "name": "TK_TRANSACTION",
+   "value": 6
+  },
+  {
+   "name": "TK_DEFERRED",
+   "value": 7
+  },
+  {
+   "name": "TK_IMMEDIATE",
+   "value": 8
+  },
+  {
+   "name": "TK_EXCLUSIVE",
+   "value": 9
+  },
+  {
+   "name": "TK_COMMIT",
+   "value": 10
+  },
+  {
+   "name": "TK_END",
+   "value": 11
+  },
+  {
+   "name": "TK_ROLLBACK",
+   "value": 12
+  },
+  {
+   "name": "TK_SAVEPOINT",
+   "value": 13
+  },
+  {
+   "name": "TK_RELEASE",
+   "value": 14
+  },
+  {
+   "name": "TK_TO",
+   "value": 15
+  },
+  {
+   "name": "TK_TABLE",
+   "value": 16
+  },
+  {
+   "name": "TK_CREATE",
+   "value": 17
+  },
+  {
+   "name": "TK_IF",
+   "value": 18
+  },
+  {
+   "name": "TK_NOT",
+   "value": 19
+  },
+  {
+   "name": "TK_EXISTS",
+   "value": 20
+  },
+  {
+   "name": "TK_TEMP",
+   "value": 21
+  },
+  {
+   "name": "TK_LP",
+   "value": 22
+  },
+  {
+   "name": "TK_RP",
+   "value": 23
+  },
+  {
+   "name": "TK_AS",
+   "value": 24
+  },
+  {
+   "name": "TK_COMMA",
+   "value": 25
+  },
+  {
+   "name": "TK_WITHOUT",
+   "value": 26
+  },
+  {
+   "name": "TK_ABORT",
+   "value": 27
+  },
+  {
+   "name": "TK_ACTION",
+   "value": 28
+  },
+  {
+   "name": "TK_AFTER",
+   "value": 29
+  },
+  {
+   "name": "TK_ANALYZE",
+   "value": 30
+  },
+  {
+   "name": "TK_ASC",
+   "value": 31
+  },
+  {
+   "name": "TK_ATTACH",
+   "value": 32
+  },
+  {
+   "name": "TK_BEFORE",
+   "value": 33
+  },
+  {
+   "name": "TK_BY",
+   "value": 34
+  },
+  {
+   "name": "TK_CASCADE",
+   "value": 35
+  },
+  {
+   "name": "TK_CAST",
+   "value": 36
+  },
+  {
+   "name": "TK_CONFLICT",
+   "value": 37
+  },
+  {
+   "name": "TK_DATABASE",
+   "value": 38
+  },
+  {
+   "name": "TK_DESC",
+   "value": 39
+  },
+  {
+   "name": "TK_DETACH",
+   "value": 40
+  },
+  {
+   "name": "TK_EACH",
+   "value": 41
+  },
+  {
+   "name": "TK_FAIL",
+   "value": 42
+  },
+  {
+   "name": "TK_OR",
+   "value": 43
+  },
+  {
+   "name": "TK_AND",
+   "value": 44
+  },
+  {
+   "name": "TK_IS",
+   "value": 45
+  },
+  {
+   "name": "TK_ISNOT",
+   "value": 46
+  },
+  {
+   "name": "TK_MATCH",
+   "value": 47
+  },
+  {
+   "name": "TK_LIKE_KW",
+   "value": 48
+  },
+  {
+   "name": "TK_BETWEEN",
+   "value": 49
+  },
+  {
+   "name": "TK_IN",
+   "value": 50
+  },
+  {
+   "name": "TK_ISNULL",
+   "value": 51
+  },
+  {
+   "name": "TK_NOTNULL",
+   "value": 52
+  },
+  {
+   "name": "TK_NE",
+   "value": 53
+  },
+  {
+   "name": "TK_EQ",
+   "value": 54
+  },
+  {
+   "name": "TK_GT",
+   "value": 55
+  },
+  {
+   "name": "TK_LE",
+   "value": 56
+  },
+  {
+   "name": "TK_LT",
+   "value": 57
+  },
+  {
+   "name": "TK_GE",
+   "value": 58
+  },
+  {
+   "name": "TK_ESCAPE",
+   "value": 59
+  },
+  {
+   "name": "TK_ID",
+   "value": 60
+  },
+  {
+   "name": "TK_COLUMNKW",
+   "value": 61
+  },
+  {
+   "name": "TK_DO",
+   "value": 62
+  },
+  {
+   "name": "TK_FOR",
+   "value": 63
+  },
+  {
+   "name": "TK_IGNORE",
+   "value": 64
+  },
+  {
+   "name": "TK_INITIALLY",
+   "value": 65
+  },
+  {
+   "name": "TK_INSTEAD",
+   "value": 66
+  },
+  {
+   "name": "TK_NO",
+   "value": 67
+  },
+  {
+   "name": "TK_KEY",
+   "value": 68
+  },
+  {
+   "name": "TK_OF",
+   "value": 69
+  },
+  {
+   "name": "TK_OFFSET",
+   "value": 70
+  },
+  {
+   "name": "TK_PRAGMA",
+   "value": 71
+  },
+  {
+   "name": "TK_RAISE",
+   "value": 72
+  },
+  {
+   "name": "TK_RECURSIVE",
+   "value": 73
+  },
+  {
+   "name": "TK_REPLACE",
+   "value": 74
+  },
+  {
+   "name": "TK_RESTRICT",
+   "value": 75
+  },
+  {
+   "name": "TK_ROW",
+   "value": 76
+  },
+  {
+   "name": "TK_ROWS",
+   "value": 77
+  },
+  {
+   "name": "TK_TRIGGER",
+   "value": 78
+  },
+  {
+   "name": "TK_VACUUM",
+   "value": 79
+  },
+  {
+   "name": "TK_VIEW",
+   "value": 80
+  },
+  {
+   "name": "TK_VIRTUAL",
+   "value": 81
+  },
+  {
+   "name": "TK_WITH",
+   "value": 82
+  },
+  {
+   "name": "TK_NULLS",
+   "value": 83
+  },
+  {
+   "name": "TK_FIRST",
+   "value": 84
+  },
+  {
+   "name": "TK_LAST",
+   "value": 85
+  },
+  {
+   "name": "TK_CURRENT",
+   "value": 86
+  },
+  {
+   "name": "TK_FOLLOWING",
+   "value": 87
+  },
+  {
+   "name": "TK_PARTITION",
+   "value": 88
+  },
+  {
+   "name": "TK_PRECEDING",
+   "value": 89
+  },
+  {
+   "name": "TK_RANGE",
+   "value": 90
+  },
+  {
+   "name": "TK_UNBOUNDED",
+   "value": 91
+  },
+  {
+   "name": "TK_EXCLUDE",
+   "value": 92
+  },
+  {
+   "name": "TK_GROUPS",
+   "value": 93
+  },
+  {
+   "name": "TK_OTHERS",
+   "value": 94
+  },
+  {
+   "name": "TK_TIES",
+   "value": 95
+  },
+  {
+   "name": "TK_GENERATED",
+   "value": 96
+  },
+  {
+   "name": "TK_ALWAYS",
+   "value": 97
+  },
+  {
+   "name": "TK_MATERIALIZED",
+   "value": 98
+  },
+  {
+   "name": "TK_REINDEX",
+   "value": 99
+  },
+  {
+   "name": "TK_RENAME",
+   "value": 100
+  },
+  {
+   "name": "TK_CTIME_KW",
+   "value": 101
+  },
+  {
+   "name": "TK_ANY",
+   "value": 102
+  },
+  {
+   "name": "TK_BITAND",
+   "value": 103
+  },
+  {
+   "name": "TK_BITOR",
+   "value": 104
+  },
+  {
+   "name": "TK_LSHIFT",
+   "value": 105
+  },
+  {
+   "name": "TK_RSHIFT",
+   "value": 106
+  },
+  {
+   "name": "TK_PLUS",
+   "value": 107
+  },
+  {
+   "name": "TK_MINUS",
+   "value": 108
+  },
+  {
+   "name": "TK_STAR",
+   "value": 109
+  },
+  {
+   "name": "TK_SLASH",
+   "value": 110
+  },
+  {
+   "name": "TK_REM",
+   "value": 111
+  },
+  {
+   "name": "TK_CONCAT",
+   "value": 112
+  },
+  {
+   "name": "TK_PTR",
+   "value": 113
+  },
+  {
+   "name": "TK_COLLATE",
+   "value": 114
+  },
+  {
+   "name": "TK_BITNOT",
+   "value": 115
+  },
+  {
+   "name": "TK_ON",
+   "value": 116
+  },
+  {
+   "name": "TK_INDEXED",
+   "value": 117
+  },
+  {
+   "name": "TK_STRING",
+   "value": 118
+  },
+  {
+   "name": "TK_JOIN_KW",
+   "value": 119
+  },
+  {
+   "name": "TK_CONSTRAINT",
+   "value": 120
+  },
+  {
+   "name": "TK_DEFAULT",
+   "value": 121
+  },
+  {
+   "name": "TK_NULL",
+   "value": 122
+  },
+  {
+   "name": "TK_PRIMARY",
+   "value": 123
+  },
+  {
+   "name": "TK_UNIQUE",
+   "value": 124
+  },
+  {
+   "name": "TK_CHECK",
+   "value": 125
+  },
+  {
+   "name": "TK_REFERENCES",
+   "value": 126
+  },
+  {
+   "name": "TK_AUTOINCR",
+   "value": 127
+  },
+  {
+   "name": "TK_INSERT",
+   "value": 128
+  },
+  {
+   "name": "TK_DELETE",
+   "value": 129
+  },
+  {
+   "name": "TK_UPDATE",
+   "value": 130
+  },
+  {
+   "name": "TK_SET",
+   "value": 131
+  },
+  {
+   "name": "TK_DEFERRABLE",
+   "value": 132
+  },
+  {
+   "name": "TK_FOREIGN",
+   "value": 133
+  },
+  {
+   "name": "TK_DROP",
+   "value": 134
+  },
+  {
+   "name": "TK_UNION",
+   "value": 135
+  },
+  {
+   "name": "TK_ALL",
+   "value": 136
+  },
+  {
+   "name": "TK_EXCEPT",
+   "value": 137
+  },
+  {
+   "name": "TK_INTERSECT",
+   "value": 138
+  },
+  {
+   "name": "TK_SELECT",
+   "value": 139
+  },
+  {
+   "name": "TK_VALUES",
+   "value": 140
+  },
+  {
+   "name": "TK_DISTINCT",
+   "value": 141
+  },
+  {
+   "name": "TK_DOT",
+   "value": 142
+  },
+  {
+   "name": "TK_FROM",
+   "value": 143
+  },
+  {
+   "name": "TK_JOIN",
+   "value": 144
+  },
+  {
+   "name": "TK_USING",
+   "value": 145
+  },
+  {
+   "name": "TK_ORDER",
+   "value": 146
+  },
+  {
+   "name": "TK_GROUP",
+   "value": 147
+  },
+  {
+   "name": "TK_HAVING",
+   "value": 148
+  },
+  {
+   "name": "TK_LIMIT",
+   "value": 149
+  },
+  {
+   "name": "TK_WHERE",
+   "value": 150
+  },
+  {
+   "name": "TK_RETURNING",
+   "value": 151
+  },
+  {
+   "name": "TK_INTO",
+   "value": 152
+  },
+  {
+   "name": "TK_NOTHING",
+   "value": 153
+  },
+  {
+   "name": "TK_FLOAT",
+   "value": 154
+  },
+  {
+   "name": "TK_BLOB",
+   "value": 155
+  },
+  {
+   "name": "TK_INTEGER",
+   "value": 156
+  },
+  {
+   "name": "TK_VARIABLE",
+   "value": 157
+  },
+  {
+   "name": "TK_CASE",
+   "value": 158
+  },
+  {
+   "name": "TK_WHEN",
+   "value": 159
+  },
+  {
+   "name": "TK_THEN",
+   "value": 160
+  },
+  {
+   "name": "TK_ELSE",
+   "value": 161
+  },
+  {
+   "name": "TK_INDEX",
+   "value": 162
+  },
+  {
+   "name": "TK_ALTER",
+   "value": 163
+  },
+  {
+   "name": "TK_ADD",
+   "value": 164
+  },
+  {
+   "name": "TK_WINDOW",
+   "value": 165
+  },
+  {
+   "name": "TK_OVER",
+   "value": 166
+  },
+  {
+   "name": "TK_FILTER",
+   "value": 167
+  },
+  {
+   "name": "TK_COLUMN",
+   "value": 168
+  },
+  {
+   "name": "TK_AGG_FUNCTION",
+   "value": 169
+  },
+  {
+   "name": "TK_AGG_COLUMN",
+   "value": 170
+  },
+  {
+   "name": "TK_TRUEFALSE",
+   "value": 171
+  },
+  {
+   "name": "TK_FUNCTION",
+   "value": 172
+  },
+  {
+   "name": "TK_UPLUS",
+   "value": 173
+  },
+  {
+   "name": "TK_UMINUS",
+   "value": 174
+  },
+  {
+   "name": "TK_TRUTH",
+   "value": 175
+  },
+  {
+   "name": "TK_REGISTER",
+   "value": 176
+  },
+  {
+   "name": "TK_VECTOR",
+   "value": 177
+  },
+  {
+   "name": "TK_SELECT_COLUMN",
+   "value": 178
+  },
+  {
+   "name": "TK_IF_NULL_ROW",
+   "value": 179
+  },
+  {
+   "name": "TK_ASTERISK",
+   "value": 180
+  },
+  {
+   "name": "TK_SPAN",
+   "value": 181
+  },
+  {
+   "name": "TK_ERROR",
+   "value": 182
+  },
+  {
+   "name": "TK_QNUMBER",
+   "value": 183
+  },
+  {
+   "name": "TK_SPACE",
+   "value": 184
+  },
+  {
+   "name": "TK_COMMENT",
+   "value": 185
+  },
+  {
+   "name": "TK_ILLEGAL",
+   "value": 186
+  }
+ ],
+ "keywords": [
+  {
+   "word": "ABORT",
+   "code": "TK_ABORT",
+   "value": 27
+  },
+  {
+   "word": "ACTION",
+   "code": "TK_ACTION",
+   "value": 28
+  },
+  {
+   "word": "ADD",
+   "code": "TK_ADD",
+   "value": 164
+  },
+  {
+   "word": "AFTER",
+   "code": "TK_AFTER",
+   "value": 29
+  },
+  {
+   "word": "ALL",
+   "code": "TK_ALL",
+   "value": 136
+  },
+  {
+   "word": "ALTER",
+   "code": "TK_ALTER",
+   "value": 163
+  },
+  {
+   "word": "ALWAYS",
+   "code": "TK_ALWAYS",
+   "value": 97
+  },
+  {
+   "word": "ANALYZE",
+   "code": "TK_ANALYZE",
+   "value": 30
+  },
+  {
+   "word": "AND",
+   "code": "TK_AND",
+   "value": 44
+  },
+  {
+   "word": "AS",
+   "code": "TK_AS",
+   "value": 24
+  },
+  {
+   "word": "ASC",
+   "code": "TK_ASC",
+   "value": 31
+  },
+  {
+   "word": "ATTACH",
+   "code": "TK_ATTACH",
+   "value": 32
+  },
+  {
+   "word": "AUTOINCREMENT",
+   "code": "TK_AUTOINCR",
+   "value": 127
+  },
+  {
+   "word": "BEFORE",
+   "code": "TK_BEFORE",
+   "value": 33
+  },
+  {
+   "word": "BEGIN",
+   "code": "TK_BEGIN",
+   "value": 5
+  },
+  {
+   "word": "BETWEEN",
+   "code": "TK_BETWEEN",
+   "value": 49
+  },
+  {
+   "word": "BY",
+   "code": "TK_BY",
+   "value": 34
+  },
+  {
+   "word": "CASCADE",
+   "code": "TK_CASCADE",
+   "value": 35
+  },
+  {
+   "word": "CASE",
+   "code": "TK_CASE",
+   "value": 158
+  },
+  {
+   "word": "CAST",
+   "code": "TK_CAST",
+   "value": 36
+  },
+  {
+   "word": "CHECK",
+   "code": "TK_CHECK",
+   "value": 125
+  },
+  {
+   "word": "COLLATE",
+   "code": "TK_COLLATE",
+   "value": 114
+  },
+  {
+   "word": "COLUMN",
+   "code": "TK_COLUMNKW",
+   "value": 61
+  },
+  {
+   "word": "COMMIT",
+   "code": "TK_COMMIT",
+   "value": 10
+  },
+  {
+   "word": "CONFLICT",
+   "code": "TK_CONFLICT",
+   "value": 37
+  },
+  {
+   "word": "CONSTRAINT",
+   "code": "TK_CONSTRAINT",
+   "value": 120
+  },
+  {
+   "word": "CREATE",
+   "code": "TK_CREATE",
+   "value": 17
+  },
+  {
+   "word": "CROSS",
+   "code": "TK_JOIN_KW",
+   "value": 119
+  },
+  {
+   "word": "CURRENT",
+   "code": "TK_CURRENT",
+   "value": 86
+  },
+  {
+   "word": "CURRENT_DATE",
+   "code": "TK_CTIME_KW",
+   "value": 101
+  },
+  {
+   "word": "CURRENT_TIME",
+   "code": "TK_CTIME_KW",
+   "value": 101
+  },
+  {
+   "word": "CURRENT_TIMESTAMP",
+   "code": "TK_CTIME_KW",
+   "value": 101
+  },
+  {
+   "word": "DATABASE",
+   "code": "TK_DATABASE",
+   "value": 38
+  },
+  {
+   "word": "DEFAULT",
+   "code": "TK_DEFAULT",
+   "value": 121
+  },
+  {
+   "word": "DEFERRABLE",
+   "code": "TK_DEFERRABLE",
+   "value": 132
+  },
+  {
+   "word": "DEFERRED",
+   "code": "TK_DEFERRED",
+   "value": 7
+  },
+  {
+   "word": "DELETE",
+   "code": "TK_DELETE",
+   "value": 129
+  },
+  {
+   "word": "DESC",
+   "code": "TK_DESC",
+   "value": 39
+  },
+  {
+   "word": "DETACH",
+   "code": "TK_DETACH",
+   "value": 40
+  },
+  {
+   "word": "DISTINCT",
+   "code": "TK_DISTINCT",
+   "value": 141
+  },
+  {
+   "word": "DO",
+   "code": "TK_DO",
+   "value": 62
+  },
+  {
+   "word": "DROP",
+   "code": "TK_DROP",
+   "value": 134
+  },
+  {
+   "word": "EACH",
+   "code": "TK_EACH",
+   "value": 41
+  },
+  {
+   "word": "ELSE",
+   "code": "TK_ELSE",
+   "value": 161
+  },
+  {
+   "word": "END",
+   "code": "TK_END",
+   "value": 11
+  },
+  {
+   "word": "ESCAPE",
+   "code": "TK_ESCAPE",
+   "value": 59
+  },
+  {
+   "word": "EXCEPT",
+   "code": "TK_EXCEPT",
+   "value": 137
+  },
+  {
+   "word": "EXCLUDE",
+   "code": "TK_EXCLUDE",
+   "value": 92
+  },
+  {
+   "word": "EXCLUSIVE",
+   "code": "TK_EXCLUSIVE",
+   "value": 9
+  },
+  {
+   "word": "EXISTS",
+   "code": "TK_EXISTS",
+   "value": 20
+  },
+  {
+   "word": "EXPLAIN",
+   "code": "TK_EXPLAIN",
+   "value": 2
+  },
+  {
+   "word": "FAIL",
+   "code": "TK_FAIL",
+   "value": 42
+  },
+  {
+   "word": "FILTER",
+   "code": "TK_FILTER",
+   "value": 167
+  },
+  {
+   "word": "FIRST",
+   "code": "TK_FIRST",
+   "value": 84
+  },
+  {
+   "word": "FOLLOWING",
+   "code": "TK_FOLLOWING",
+   "value": 87
+  },
+  {
+   "word": "FOR",
+   "code": "TK_FOR",
+   "value": 63
+  },
+  {
+   "word": "FOREIGN",
+   "code": "TK_FOREIGN",
+   "value": 133
+  },
+  {
+   "word": "FROM",
+   "code": "TK_FROM",
+   "value": 143
+  },
+  {
+   "word": "FULL",
+   "code": "TK_JOIN_KW",
+   "value": 119
+  },
+  {
+   "word": "GENERATED",
+   "code": "TK_GENERATED",
+   "value": 96
+  },
+  {
+   "word": "GLOB",
+   "code": "TK_LIKE_KW",
+   "value": 48
+  },
+  {
+   "word": "GROUP",
+   "code": "TK_GROUP",
+   "value": 147
+  },
+  {
+   "word": "GROUPS",
+   "code": "TK_GROUPS",
+   "value": 93
+  },
+  {
+   "word": "HAVING",
+   "code": "TK_HAVING",
+   "value": 148
+  },
+  {
+   "word": "IF",
+   "code": "TK_IF",
+   "value": 18
+  },
+  {
+   "word": "IGNORE",
+   "code": "TK_IGNORE",
+   "value": 64
+  },
+  {
+   "word": "IMMEDIATE",
+   "code": "TK_IMMEDIATE",
+   "value": 8
+  },
+  {
+   "word": "IN",
+   "code": "TK_IN",
+   "value": 50
+  },
+  {
+   "word": "INDEX",
+   "code": "TK_INDEX",
+   "value": 162
+  },
+  {
+   "word": "INDEXED",
+   "code": "TK_INDEXED",
+   "value": 117
+  },
+  {
+   "word": "INITIALLY",
+   "code": "TK_INITIALLY",
+   "value": 65
+  },
+  {
+   "word": "INNER",
+   "code": "TK_JOIN_KW",
+   "value": 119
+  },
+  {
+   "word": "INSERT",
+   "code": "TK_INSERT",
+   "value": 128
+  },
+  {
+   "word": "INSTEAD",
+   "code": "TK_INSTEAD",
+   "value": 66
+  },
+  {
+   "word": "INTERSECT",
+   "code": "TK_INTERSECT",
+   "value": 138
+  },
+  {
+   "word": "INTO",
+   "code": "TK_INTO",
+   "value": 152
+  },
+  {
+   "word": "IS",
+   "code": "TK_IS",
+   "value": 45
+  },
+  {
+   "word": "ISNULL",
+   "code": "TK_ISNULL",
+   "value": 51
+  },
+  {
+   "word": "JOIN",
+   "code": "TK_JOIN",
+   "value": 144
+  },
+  {
+   "word": "KEY",
+   "code": "TK_KEY",
+   "value": 68
+  },
+  {
+   "word": "LAST",
+   "code": "TK_LAST",
+   "value": 85
+  },
+  {
+   "word": "LEFT",
+   "code": "TK_JOIN_KW",
+   "value": 119
+  },
+  {
+   "word": "LIKE",
+   "code": "TK_LIKE_KW",
+   "value": 48
+  },
+  {
+   "word": "LIMIT",
+   "code": "TK_LIMIT",
+   "value": 149
+  },
+  {
+   "word": "MATCH",
+   "code": "TK_MATCH",
+   "value": 47
+  },
+  {
+   "word": "MATERIALIZED",
+   "code": "TK_MATERIALIZED",
+   "value": 98
+  },
+  {
+   "word": "NATURAL",
+   "code": "TK_JOIN_KW",
+   "value": 119
+  },
+  {
+   "word": "NO",
+   "code": "TK_NO",
+   "value": 67
+  },
+  {
+   "word": "NOT",
+   "code": "TK_NOT",
+   "value": 19
+  },
+  {
+   "word": "NOTHING",
+   "code": "TK_NOTHING",
+   "value": 153
+  },
+  {
+   "word": "NOTNULL",
+   "code": "TK_NOTNULL",
+   "value": 52
+  },
+  {
+   "word": "NULL",
+   "code": "TK_NULL",
+   "value": 122
+  },
+  {
+   "word": "NULLS",
+   "code": "TK_NULLS",
+   "value": 83
+  },
+  {
+   "word": "OF",
+   "code": "TK_OF",
+   "value": 69
+  },
+  {
+   "word": "OFFSET",
+   "code": "TK_OFFSET",
+   "value": 70
+  },
+  {
+   "word": "ON",
+   "code": "TK_ON",
+   "value": 116
+  },
+  {
+   "word": "OR",
+   "code": "TK_OR",
+   "value": 43
+  },
+  {
+   "word": "ORDER",
+   "code": "TK_ORDER",
+   "value": 146
+  },
+  {
+   "word": "OTHERS",
+   "code": "TK_OTHERS",
+   "value": 94
+  },
+  {
+   "word": "OUTER",
+   "code": "TK_JOIN_KW",
+   "value": 119
+  },
+  {
+   "word": "OVER",
+   "code": "TK_OVER",
+   "value": 166
+  },
+  {
+   "word": "PARTITION",
+   "code": "TK_PARTITION",
+   "value": 88
+  },
+  {
+   "word": "PLAN",
+   "code": "TK_PLAN",
+   "value": 4
+  },
+  {
+   "word": "PRAGMA",
+   "code": "TK_PRAGMA",
+   "value": 71
+  },
+  {
+   "word": "PRECEDING",
+   "code": "TK_PRECEDING",
+   "value": 89
+  },
+  {
+   "word": "PRIMARY",
+   "code": "TK_PRIMARY",
+   "value": 123
+  },
+  {
+   "word": "QUERY",
+   "code": "TK_QUERY",
+   "value": 3
+  },
+  {
+   "word": "RAISE",
+   "code": "TK_RAISE",
+   "value": 72
+  },
+  {
+   "word": "RANGE",
+   "code": "TK_RANGE",
+   "value": 90
+  },
+  {
+   "word": "RECURSIVE",
+   "code": "TK_RECURSIVE",
+   "value": 73
+  },
+  {
+   "word": "REFERENCES",
+   "code": "TK_REFERENCES",
+   "value": 126
+  },
+  {
+   "word": "REGEXP",
+   "code": "TK_LIKE_KW",
+   "value": 48
+  },
+  {
+   "word": "REINDEX",
+   "code": "TK_REINDEX",
+   "value": 99
+  },
+  {
+   "word": "RELEASE",
+   "code": "TK_RELEASE",
+   "value": 14
+  },
+  {
+   "word": "RENAME",
+   "code": "TK_RENAME",
+   "value": 100
+  },
+  {
+   "word": "REPLACE",
+   "code": "TK_REPLACE",
+   "value": 74
+  },
+  {
+   "word": "RESTRICT",
+   "code": "TK_RESTRICT",
+   "value": 75
+  },
+  {
+   "word": "RETURNING",
+   "code": "TK_RETURNING",
+   "value": 151
+  },
+  {
+   "word": "RIGHT",
+   "code": "TK_JOIN_KW",
+   "value": 119
+  },
+  {
+   "word": "ROLLBACK",
+   "code": "TK_ROLLBACK",
+   "value": 12
+  },
+  {
+   "word": "ROW",
+   "code": "TK_ROW",
+   "value": 76
+  },
+  {
+   "word": "ROWS",
+   "code": "TK_ROWS",
+   "value": 77
+  },
+  {
+   "word": "SAVEPOINT",
+   "code": "TK_SAVEPOINT",
+   "value": 13
+  },
+  {
+   "word": "SELECT",
+   "code": "TK_SELECT",
+   "value": 139
+  },
+  {
+   "word": "SET",
+   "code": "TK_SET",
+   "value": 131
+  },
+  {
+   "word": "TABLE",
+   "code": "TK_TABLE",
+   "value": 16
+  },
+  {
+   "word": "TEMP",
+   "code": "TK_TEMP",
+   "value": 21
+  },
+  {
+   "word": "TEMPORARY",
+   "code": "TK_TEMP",
+   "value": 21
+  },
+  {
+   "word": "THEN",
+   "code": "TK_THEN",
+   "value": 160
+  },
+  {
+   "word": "TIES",
+   "code": "TK_TIES",
+   "value": 95
+  },
+  {
+   "word": "TO",
+   "code": "TK_TO",
+   "value": 15
+  },
+  {
+   "word": "TRANSACTION",
+   "code": "TK_TRANSACTION",
+   "value": 6
+  },
+  {
+   "word": "TRIGGER",
+   "code": "TK_TRIGGER",
+   "value": 78
+  },
+  {
+   "word": "UNBOUNDED",
+   "code": "TK_UNBOUNDED",
+   "value": 91
+  },
+  {
+   "word": "UNION",
+   "code": "TK_UNION",
+   "value": 135
+  },
+  {
+   "word": "UNIQUE",
+   "code": "TK_UNIQUE",
+   "value": 124
+  },
+  {
+   "word": "UPDATE",
+   "code": "TK_UPDATE",
+   "value": 130
+  },
+  {
+   "word": "USING",
+   "code": "TK_USING",
+   "value": 145
+  },
+  {
+   "word": "VACUUM",
+   "code": "TK_VACUUM",
+   "value": 79
+  },
+  {
+   "word": "VALUES",
+   "code": "TK_VALUES",
+   "value": 140
+  },
+  {
+   "word": "VIEW",
+   "code": "TK_VIEW",
+   "value": 80
+  },
+  {
+   "word": "VIRTUAL",
+   "code": "TK_VIRTUAL",
+   "value": 81
+  },
+  {
+   "word": "WHEN",
+   "code": "TK_WHEN",
+   "value": 159
+  },
+  {
+   "word": "WHERE",
+   "code": "TK_WHERE",
+   "value": 150
+  },
+  {
+   "word": "WINDOW",
+   "code": "TK_WINDOW",
+   "value": 165
+  },
+  {
+   "word": "WITH",
+   "code": "TK_WITH",
+   "value": 82
+  },
+  {
+   "word": "WITHOUT",
+   "code": "TK_WITHOUT",
+   "value": 26
+  }
+ ]
+}

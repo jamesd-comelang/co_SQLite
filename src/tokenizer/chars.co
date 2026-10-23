@@ -1,0 +1,144 @@
+module tokenizer
+
+import string
+
+// chars.co -- character classification for module tokenizer:
+// the aiClass[] table and sqlite3CtypeMap predicates from
+// SQLite's tokenize.c, over Unicode codepoints.
+
+const CH_SQUOTE = 39
+
+// Character classes, mirroring aiClass[] in tokenize.c. The numeric
+// values are SQLite's own (the ordering matters: get_token's keyword
+// path compares class <= CH_KYWD).
+const (
+    CH_X = 0,
+    CH_KYWD0 = 1,
+    CH_KYWD = 2,
+    CH_DIGIT = 3,
+    CH_DOLLAR = 4,
+    CH_VARALPHA = 5,
+    CH_VARNUM = 6,
+    CH_SPACE = 7,
+    CH_QUOTE = 8,
+    CH_QUOTE2 = 9,
+    CH_PIPE = 10,
+    CH_MINUS = 11,
+    CH_LT = 12,
+    CH_GT = 13,
+    CH_EQ = 14,
+    CH_BANG = 15,
+    CH_SLASH = 16,
+    CH_LP = 17,
+    CH_RP = 18,
+    CH_SEMI = 19,
+    CH_PLUS = 20,
+    CH_STAR = 21,
+    CH_PERCENT = 22,
+    CH_COMMA = 23,
+    CH_AND = 24,
+    CH_TILDA = 25,
+    CH_DOT = 26,
+    CH_ID = 27,
+    CH_ILLEGAL = 28,
+    CH_NUL = 29,
+    CH_BOM = 30,
+)
+
+
+// ----------------------------------------------------------------
+// Character helpers (internal; tk_ prefix)
+
+int tk_utf8_len(int cp) {
+    if (cp < 0x80) { return 1 }
+    if (cp < 0x800) { return 2 }
+    if (cp < 0x10000) { return 3 }
+    return 4
+}
+
+// Codepoint at character index i, or 0 when out of range -- the same
+// role the terminating NUL plays in the C code.
+int tk_cp(string sql, int i) {
+    if (i < 0 || i >= sql.length()) { return 0 }
+    return int(sql[i])
+}
+
+// sqlite3Isspace: {tab, LF, VT, FF, CR, space} per sqlite3CtypeMap.
+bool tk_is_space(int cp) {
+    return cp == 32 || (cp >= 9 && cp <= 13)
+}
+
+bool tk_is_digit(int cp) {
+    return cp >= '0' && cp <= '9'
+}
+
+bool tk_is_xdigit(int cp) {
+    if (tk_is_digit(cp)) { return true }
+    if (cp >= 'a' && cp <= 'f') { return true }
+    return cp >= 'A' && cp <= 'F'
+}
+
+// IdChar() from tokenize.c: (sqlite3CtypeMap[c] & 0x46) != 0, i.e.
+// letters, digits, '_' and '$', plus every byte >= 0x80 (here: every
+// codepoint >= 0x80, which begins with a byte >= 0x80 in UTF-8).
+bool tk_is_idchar(int cp) {
+    if (cp >= 0x80) { return true }
+    if (tk_is_digit(cp)) { return true }
+    if (cp >= 'A' && cp <= 'Z') { return true }
+    if (cp >= 'a' && cp <= 'z') { return true }
+    return cp == '_' || cp == '$'
+}
+
+// aiClass[] (SQLITE_ASCII build), computed per codepoint. Codepoints
+// >= 0x80 are CH_ID, except U+FEFF whose UTF-8 encoding starts with
+// 0xEF (aiClass = CH_BOM) -- the get_token BOM case then accepts
+// exactly the full BOM sequence, because a lone U+FEFF *is* the BOM.
+int tk_class(int cp) {
+    if (cp == 0) { return CH_NUL }
+    if (cp >= 0x80) {
+        if (cp == 0xFEFF) { return CH_BOM }
+        return CH_ID
+    }
+    if (cp == 'x' || cp == 'X') { return CH_X }
+    if ((cp >= 'A' && cp <= 'W') || (cp >= 'a' && cp <= 'w')) { return CH_KYWD0 }
+    if ((cp >= 'Y' && cp <= 'Z') || (cp >= 'y' && cp <= 'z') || cp == '_') { return CH_KYWD }
+    if (tk_is_digit(cp)) { return CH_DIGIT }
+    if (cp == '$') { return CH_DOLLAR }
+    if (cp == '@' || cp == '#' || cp == ':') { return CH_VARALPHA }
+    if (cp == '?') { return CH_VARNUM }
+    if (tk_is_space(cp)) {
+        // Quirk of the C table: VT (0x0B) is CH_ILLEGAL as the FIRST
+        // byte of a token, even though it is whitespace inside a run.
+        if (cp == 11) { return CH_ILLEGAL }
+        return CH_SPACE
+    }
+    if (cp == '"' || cp == CH_SQUOTE || cp == '`') { return CH_QUOTE }
+    if (cp == '[') { return CH_QUOTE2 }
+    if (cp == '|') { return CH_PIPE }
+    if (cp == '-') { return CH_MINUS }
+    if (cp == '<') { return CH_LT }
+    if (cp == '>') { return CH_GT }
+    if (cp == '=') { return CH_EQ }
+    if (cp == '!') { return CH_BANG }
+    if (cp == '/') { return CH_SLASH }
+    if (cp == '(') { return CH_LP }
+    if (cp == ')') { return CH_RP }
+    if (cp == ';') { return CH_SEMI }
+    if (cp == '+') { return CH_PLUS }
+    if (cp == '*') { return CH_STAR }
+    if (cp == '%') { return CH_PERCENT }
+    if (cp == ',') { return CH_COMMA }
+    if (cp == '&') { return CH_AND }
+    if (cp == '~') { return CH_TILDA }
+    if (cp == '.') { return CH_DOT }
+    return CH_ILLEGAL
+}
+
+// Byte length of the character range [ci, cj) of sql.
+int tk_byte_len(string sql, int ci, int cj) {
+    int total = 0
+    for (int k = ci; k < cj; k++) {
+        total = total + tk_utf8_len(tk_cp(sql, k))
+    }
+    return total
+}
