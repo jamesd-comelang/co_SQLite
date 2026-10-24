@@ -167,6 +167,11 @@ compiler should reject `create()` at module scope with a
 Come-level error, instead of accepting the declaration and
 failing in generated C.
 
+*Status:* fixed in Come as **COIL-149** (come-lang `88eb3ca`):
+the declaration-site codegen rejects it with "a module instance
+can only be created inside a function…"; regression case
+`tests/instance_project/bad_global.co` in come-lang.
+
 ---
 
 ## Readiness assessment
