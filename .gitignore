@@ -24,3 +24,4 @@ tools/bench/micro1_new
 tools/bench/micro2_new
 tools/bench/micro4_new
 tools/bench/build/
+tools/bench/bench_*
