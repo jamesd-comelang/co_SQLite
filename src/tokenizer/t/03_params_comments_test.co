@@ -10,8 +10,8 @@ import tokenizer
 int failures = 0
 
 // Expectations are one string of "NAME:START:LEN" triples separated
-// by spaces ("" means: no tokens). Arrays cannot be passed as
-// literals to a call in Come, so a spec string is the compact form.
+// by spaces ("" means: no tokens) -- a compact notation for a
+// token stream.
 void expect(string sql, string spec) {
     var tz = tokenizer.create()
     tz.open(sql)

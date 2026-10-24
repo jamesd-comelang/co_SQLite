@@ -50,9 +50,9 @@ this document — where they disagree, the harness wins.
 
 ## Known divergences and limits
 
-1. **Valid UTF-8 input only.** Come strings are character
-   sequences; the port scans by codepoint and converts to byte
-   offsets via UTF-8 length. For valid UTF-8 this is byte-exact.
+1. **Valid UTF-8 input only.** The port scans the string's
+   bytes directly (`sql.byte_array()`), exactly like the C code;
+   for valid UTF-8 this is byte-exact, at every byte offset.
    Invalid UTF-8 byte sequences cannot be represented in a Come
    string at all, so SQLite's byte-level treatment of them (each
    byte ≥ 0x80 is an identifier character) cannot be reproduced.
@@ -60,19 +60,14 @@ this document — where they disagree, the harness wins.
    a NUL character, so "end of input" is the string's end. In C,
    an embedded NUL terminates the token scan (`TK_ILLEGAL`, 0) and
    the parser driver reacts; that situation cannot arise here.
-3. **Mid-codepoint positions.** The positional entry points
-   (`token_type_at` / `token_len_at`) take a byte offset. If it
-   lands inside a multibyte codepoint, they return
-   `(TK_ILLEGAL, 1)`; the C function would classify the raw byte.
-   The cursor API never produces such positions.
-4. **Parser-driver behavior is out of scope, as in C.**
+3. **Parser-driver behavior is out of scope, as in C.**
    `sqlite3GetToken` itself returns `TK_ILLEGAL`/0 at end of input
    and raw `TK_WINDOW`/`TK_OVER`/`TK_FILTER` codes;
    `sqlite3RunParser` is what synthesizes `TK_SEMI`/EOF and
    reclassifies those three keywords by lookahead. Both belong to
    step 2 (the parser), not to this port — but callers of this
    tokenizer should know the raw codes are what they get.
-5. **`WITHIN` is `TK_ID`, deliberately.** `mkkeywordhash.c` lists
+4. **`WITHIN` is `TK_ID`, deliberately.** `mkkeywordhash.c` lists
    WITHIN but gates it behind the ORDERSET feature, which a default
    build does not define; the generated table — and therefore this
    port — does not recognize it. Pinned by a regression test.

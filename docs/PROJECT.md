@@ -27,29 +27,29 @@ Reference: SQLite trunk `f879fb1` (2026-10-21), `src/tokenize.c`
 
 | SQLite (C) dependency | Come equivalent | Verdict |
 |---|---|---|
-| `const unsigned char *z` byte string, NUL-terminated | `string` (immutable, UTF-8, character-first) + byte offsets recomputed from codepoints | ⚠️ works for valid UTF-8; embedded NUL / invalid UTF-8 impossible — see BEHAVIOR.md |
-| `aiClass[256]` byte class table | `class_of(cp)` if-chain over codepoints (ASCII table identical; ≥0x80 → CC_ID) | ✅ |
-| `sqlite3CtypeMap` (Isspace/Isdigit/Isxdigit/IdChar) | small predicate functions on codepoints | ✅ |
-| `keywordhash.h` perfect hash | `map{string,int}` lookup on the lowercased word | ✅ (slower; rebuilt per call — COME_GAPS #4) |
-| `parse.h` TK_* `#define`s | `const` group in `tokenizer.co` | ⚠️ usable inside the module only (COME_GAPS #1) |
-| returning (type, length) via out-param + return | tuple return `(int, int)` | ⛔ tuples do not survive module boundaries (COME_GAPS #7) — internal scanners report through module registers; the public API is a cursor (COME_GAPS #9) |
+| `const unsigned char *z` byte string, NUL-terminated | `string.byte_array()` → `byte[]`, scanned directly | ✅ (fixed COIL-141; embedded NUL / invalid UTF-8 remain impossible in a Come string — see BEHAVIOR.md) |
+| `aiClass[256]` byte class table | `tk_class(c)` if-chain over bytes (identical table; 0xEF → CC_BOM, ≥0x80 → CC_ID) | ✅ |
+| `sqlite3CtypeMap` (Isspace/Isdigit/Isxdigit/IdChar) | small predicate functions on bytes | ✅ |
+| `keywordhash.h` perfect hash | `map{string,int}` lookup on the lowercased word | ✅ (slower; rebuilt per call — a shared build-once table is blocked by COME_GAPS #15) |
+| `parse.h` TK_* `#define`s | `const` group in `tokenizer.co`, shared by the module's files | ✅ inside the module (COIL-148); exporting all 186 hits the 64-symbol cap (COME_GAPS #16) |
+| returning (type, length) via out-param + return | tuple return `(int, int)` | ✅ (fixed COIL-146) — the public API is `get_token(sql, pos) -> (type, len)`; the cursor remains for streaming |
 | `sqlite3Isspace` etc. macros | plain functions | ✅ |
 | parser-state reclassification of WINDOW/OVER/FILTER (`sqlite3RunParser`) | **out of scope**: lives in the parser driver, not `sqlite3GetToken`; raw codes returned (TK_WINDOW/TK_OVER/TK_FILTER), reclassification documented for step 2 | ⛔ by design |
 
 ### Blockers found before implementation (tasklet 0)
 
 1. `string.byte_array()` — the documented way to get raw bytes —
-   does not compile (returns `int` to codegen; COME_GAPS #2). The
-   tokenizer therefore scans by **codepoint** and converts to byte
-   offsets via UTF-8 length — exact for valid UTF-8 input.
-2. Cross-module constants are unreadable (§3.4) → API works around it
-   with `token_name()`; numeric values published in TOKEN_MAP.md.
+   did not compile (COME_GAPS #2); the first version of the port
+   therefore scanned by codepoint. **Resolved by COIL-141**; the
+   port was finished on bytes (see "Finishing pass" below).
+2. Cross-module constants were unreadable (§3.4). **Resolved
+   inside the module by COIL-148**; exporting all 186 constants
+   to importers hits the 64-symbol cap (COME_GAPS #16), so
+   `token_name()` + TOKEN_MAP.md remain the external path.
 3. `come test` builds each test in isolation and cannot resolve a
    project module from `src/tokenizer/t/` → tests run through `run_tests.sh`
    (`come run` from the repo root, where the `src/` rule applies).
-
-None of these blocked the port; all three are logged with repros in
-COME_GAPS.md.
+   **Still open** (COME_GAPS #3).
 
 ## Later steps (backlog, not started)
 
@@ -58,16 +58,40 @@ COME_GAPS.md.
 - Step 3: `sqlite3Dequote*`, token → Expr values (numbers/strings).
 - Each later step starts with its own tasklet breakdown like this one.
 
+## Finishing pass (2026-10-23, against Come `88eb3ca`)
+
+The gap review turned each tokenizer gap into a Come story
+(COIL-141…149). With those landed, the port was finished the way
+it was originally designed:
+
+- Scanner works on **bytes** (`byte_array()`, COIL-141) — a direct
+  transliteration of `tokenize.c`; the codepoint conversion layer
+  survives only inside `token_text()`.
+- Sub-scanners **return tuples**; the module-register variables
+  are deleted (COIL-146). Public API gains the C-shaped
+  `get_token(sql, byte_pos) -> (type, len)`; the cursor stays.
+- **One constant definition** serves all four files (COIL-148);
+  the `CH_*` / `KW_FALLBACK_ID` per-file copies are gone.
+- Tests write `\"` and `\'` plainly (COIL-143); the
+  differential generator dropped its `sprintf` quote plumbing.
+- The cursor converts the input to bytes once, in `open()`.
+
+Re-verified end to end: all four suites green, the 123-case
+differential re-run against the C harness with identical
+expectations. Three narrower gaps were found by this pass and
+filed as COME_GAPS #15–#17 (maps in signatures of stateful
+modules, the 64-symbol export cap, literal arguments on the
+tuple-destructure path).
+
 ## Assessment (step 1)
 
 Come was sufficient for a byte-exact tokenizer with **zero invented
 syntax**: the port is a four-file directory module using strings,
-one map and consts, verified token-for-token against the C
-original on 123 differential inputs plus three hand-written suites.
-The friction was not in the scanner itself but at the seams —
-raw-byte access, cross-module constants, tuple/struct returns
-across module boundaries, file-size and line-length limits, and
-test discovery (COME_GAPS #1–#14). A parser (step 2) will stress
-exactly those seams harder (shared token constants, struct-heavy
-AST), so gaps #1 and #2, in that order, are what most limits
-porting the next component. Full assessment: docs/COME_GAPS.md.
+byte arrays, one map and consts, verified token-for-token against
+the C original on 123 differential inputs plus three hand-written
+suites. The friction was never in the scanner itself but at the
+seams — and after the fix pass the seams that remain are test
+discovery (#3), map-typed signatures in stateful modules (#15),
+the export cap (#16) and the tuple-call literal wart (#17). For
+step 2, #16 is the one to watch: a parser wants the token
+constants by name. Full assessment: docs/COME_GAPS.md.

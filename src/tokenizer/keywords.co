@@ -3,22 +3,18 @@ module tokenizer
 import string
 
 // keywords.co -- sqlite3KeywordCode() for module tokenizer.
-
-// ----------------------------------------------------------------
-// keyword_code -- sqlite3KeywordCode(): the TK_* code for a word,
-// case-insensitively, or TK_ID when the word is not a keyword.
-// SQLite uses a generated perfect hash (keywordhash.h); Come has no
-// const tables, so this builds a map{string,int} per call -- correct,
-// not fast. See docs/COME_GAPS.md #4.
-
-
-// TK_ID is declared in tokens.co, but Come codegen resolves
-// constants per-file, so this file carries its own copy of the one
-// constant it uses (same SQLite value; see docs/COME_GAPS.md #6).
-const KW_FALLBACK_ID = 60
+//
+// SQLite uses a generated perfect hash (keywordhash.h); the Come
+// port uses a map{string,int}, built per call: correct, not fast.
+// A build-once module table is the documented pattern (COIL-142),
+// but sharing it needs the map in a function signature, and in a
+// stateful module that breaks the generated C -- the map type is
+// pasted untranslated into prototypes (docs/COME_GAPS.md #15).
+// TK_ID is tokenizer.co's constant, shared module-wide (COIL-148).
 
 int keyword_code(string word) {
     map{string, int} m
+
 // BEGIN GENERATED: keyword-map
     m["abort"] = 27
     m["action"] = 28
@@ -173,8 +169,7 @@ int keyword_code(string word) {
     int v = m[lw]
     if (ERR.set()) {
         ERR.clear()
-        return KW_FALLBACK_ID
+        return TK_ID
     }
     return v
 }
-

@@ -38,7 +38,6 @@ void end_case(tokenizer tz) {
 }
 
 int main() {
-    string dq = sprintf("%c", '"')
     var tz = tokenizer.create()
     open_case(tz, 0, "")
     end_case(tz)
@@ -196,13 +195,13 @@ int main() {
     open_case(tz, 39, "'a\nb'")
     tok(tz, "118:0:5")
     end_case(tz)
-    open_case(tz, 40, dq + "my col" + dq)
+    open_case(tz, 40, "\"my col\"")
     tok(tz, "60:0:8")
     end_case(tz)
     open_case(tz, 41, "`weird`")
     tok(tz, "60:0:7")
     end_case(tz)
-    open_case(tz, 42, dq + "a" + dq + dq + "b" + dq)
+    open_case(tz, 42, "\"a\"\"b\"")
     tok(tz, "60:0:6")
     end_case(tz)
     open_case(tz, 43, "[a b]")
@@ -214,7 +213,7 @@ int main() {
     open_case(tz, 45, "[]")
     tok(tz, "60:0:2")
     end_case(tz)
-    open_case(tz, 46, dq + "unterm")
+    open_case(tz, 46, "\"unterm")
     tok(tz, "186:0:7")
     end_case(tz)
     open_case(tz, 47, "42")

@@ -4,8 +4,8 @@ module tokenizer
 
 // ----------------------------------------------------------------
 // token_name -- the SQLite name of a token code, "" when unknown.
-// (Exists because callers cannot read this module's TK_* constants
-// yet; see docs/COME_GAPS.md #1.)
+// (For display and tests; code compares the exported TK_*
+// constants directly.)
 
 string token_name(int t) {
     switch (t) {

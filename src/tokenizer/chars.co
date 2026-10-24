@@ -4,50 +4,104 @@ import string
 
 // chars.co -- character classification for module tokenizer:
 // the aiClass[] table and sqlite3CtypeMap predicates from
-// SQLite's tokenize.c, over Unicode codepoints.
+// SQLite's tokenize.c, over BYTES -- since COIL-141 fixed
+// string.byte_array(), the scanner works on the input's bytes
+// exactly like the C code does. The CC_* class constants and
+// CP_SQUOTE are declared once in tokenizer.co and shared by
+// every file of this module (COIL-148).
 
-const CH_SQUOTE = 39
+// Byte at offset i of b as an unsigned value 0..255 (Come's
+// byte is signed), or 0 past the end -- the same role the
+// terminating NUL plays in the C code.
+int tk_byte(byte[] b, int i) {
+    if (i < 0 || i >= b.length()) { return 0 }
+    int v = int(b[i])
+    if (v < 0) { v = v + 256 }
+    return v
+}
 
-// Character classes, mirroring aiClass[] in tokenize.c. The numeric
-// values are SQLite's own (the ordering matters: get_token's keyword
-// path compares class <= CH_KYWD).
-const (
-    CH_X = 0,
-    CH_KYWD0 = 1,
-    CH_KYWD = 2,
-    CH_DIGIT = 3,
-    CH_DOLLAR = 4,
-    CH_VARALPHA = 5,
-    CH_VARNUM = 6,
-    CH_SPACE = 7,
-    CH_QUOTE = 8,
-    CH_QUOTE2 = 9,
-    CH_PIPE = 10,
-    CH_MINUS = 11,
-    CH_LT = 12,
-    CH_GT = 13,
-    CH_EQ = 14,
-    CH_BANG = 15,
-    CH_SLASH = 16,
-    CH_LP = 17,
-    CH_RP = 18,
-    CH_SEMI = 19,
-    CH_PLUS = 20,
-    CH_STAR = 21,
-    CH_PERCENT = 22,
-    CH_COMMA = 23,
-    CH_AND = 24,
-    CH_TILDA = 25,
-    CH_DOT = 26,
-    CH_ID = 27,
-    CH_ILLEGAL = 28,
-    CH_NUL = 29,
-    CH_BOM = 30,
-)
+// sqlite3Isspace: {tab, LF, VT, FF, CR, space} per sqlite3CtypeMap.
+bool tk_is_space(int c) {
+    return c == 32 || (c >= 9 && c <= 13)
+}
 
+bool tk_is_digit(int c) {
+    return c >= '0' && c <= '9'
+}
+
+bool tk_is_xdigit(int c) {
+    if (tk_is_digit(c)) { return true }
+    if (c >= 'a' && c <= 'f') { return true }
+    return c >= 'A' && c <= 'F'
+}
+
+// IdChar() from tokenize.c: (sqlite3CtypeMap[c] & 0x46) != 0, i.e.
+// letters, digits, '_' and '$', plus every byte >= 0x80.
+bool tk_is_idchar(int c) {
+    if (c >= 0x80) { return true }
+    if (tk_is_digit(c)) { return true }
+    if (c >= 'A' && c <= 'Z') { return true }
+    if (c >= 'a' && c <= 'z') { return true }
+    return c == '_' || c == '$'
+}
+
+// aiClass[] (SQLITE_ASCII build), per byte: 0xEF is CC_BOM (the
+// get_token BOM case then checks the full EF BB BF sequence);
+// every other byte >= 0x80 is CC_ID.
+int tk_class(int c) {
+    if (c == 0) { return CC_NUL }
+    if (c == 0xEF) { return CC_BOM }
+    if (c >= 0x80) { return CC_ID }
+    if (c == 'x' || c == 'X') { return CC_X }
+    if ((c >= 'A' && c <= 'W') || (c >= 'a' && c <= 'w')) { return CC_KYWD0 }
+    if ((c >= 'Y' && c <= 'Z') || (c >= 'y' && c <= 'z') || c == '_') { return CC_KYWD }
+    if (tk_is_digit(c)) { return CC_DIGIT }
+    if (c == '$') { return CC_DOLLAR }
+    if (c == '@' || c == '#' || c == ':') { return CC_VARALPHA }
+    if (c == '?') { return CC_VARNUM }
+    if (tk_is_space(c)) {
+        // Quirk of the C table: VT (0x0B) is CC_ILLEGAL as the FIRST
+        // byte of a token, even though it is whitespace inside a run.
+        if (c == 11) { return CC_ILLEGAL }
+        return CC_SPACE
+    }
+    if (c == '"' || c == CP_SQUOTE || c == '`') { return CC_QUOTE }
+    if (c == '[') { return CC_QUOTE2 }
+    if (c == '|') { return CC_PIPE }
+    if (c == '-') { return CC_MINUS }
+    if (c == '<') { return CC_LT }
+    if (c == '>') { return CC_GT }
+    if (c == '=') { return CC_EQ }
+    if (c == '!') { return CC_BANG }
+    if (c == '/') { return CC_SLASH }
+    if (c == '(') { return CC_LP }
+    if (c == ')') { return CC_RP }
+    if (c == ';') { return CC_SEMI }
+    if (c == '+') { return CC_PLUS }
+    if (c == '*') { return CC_STAR }
+    if (c == '%') { return CC_PERCENT }
+    if (c == ',') { return CC_COMMA }
+    if (c == '&') { return CC_AND }
+    if (c == '~') { return CC_TILDA }
+    if (c == '.') { return CC_DOT }
+    return CC_ILLEGAL
+}
+
+// Char index of byte offset byte_pos in b: the count of bytes
+// before it that are not UTF-8 continuation bytes. Used only to
+// cut a (pure-ASCII) keyword candidate out of the source string.
+int tk_char_index(byte[] b, int byte_pos) {
+    int n = 0
+    for (int k = 0; k < byte_pos; k++) {
+        int c = tk_byte(b, k)
+        if (c < 0x80 || c >= 0xC0) { n = n + 1 }
+    }
+    return n
+}
 
 // ----------------------------------------------------------------
-// Character helpers (internal; tk_ prefix)
+// UTF-8 helpers, kept for token_text(), which extracts a token's
+// text from the source string by byte extent.
 
 int tk_utf8_len(int cp) {
     if (cp < 0x80) { return 1 }
@@ -56,89 +110,8 @@ int tk_utf8_len(int cp) {
     return 4
 }
 
-// Codepoint at character index i, or 0 when out of range -- the same
-// role the terminating NUL plays in the C code.
+// Codepoint at character index i, or 0 when out of range.
 int tk_cp(string sql, int i) {
     if (i < 0 || i >= sql.length()) { return 0 }
     return int(sql[i])
-}
-
-// sqlite3Isspace: {tab, LF, VT, FF, CR, space} per sqlite3CtypeMap.
-bool tk_is_space(int cp) {
-    return cp == 32 || (cp >= 9 && cp <= 13)
-}
-
-bool tk_is_digit(int cp) {
-    return cp >= '0' && cp <= '9'
-}
-
-bool tk_is_xdigit(int cp) {
-    if (tk_is_digit(cp)) { return true }
-    if (cp >= 'a' && cp <= 'f') { return true }
-    return cp >= 'A' && cp <= 'F'
-}
-
-// IdChar() from tokenize.c: (sqlite3CtypeMap[c] & 0x46) != 0, i.e.
-// letters, digits, '_' and '$', plus every byte >= 0x80 (here: every
-// codepoint >= 0x80, which begins with a byte >= 0x80 in UTF-8).
-bool tk_is_idchar(int cp) {
-    if (cp >= 0x80) { return true }
-    if (tk_is_digit(cp)) { return true }
-    if (cp >= 'A' && cp <= 'Z') { return true }
-    if (cp >= 'a' && cp <= 'z') { return true }
-    return cp == '_' || cp == '$'
-}
-
-// aiClass[] (SQLITE_ASCII build), computed per codepoint. Codepoints
-// >= 0x80 are CH_ID, except U+FEFF whose UTF-8 encoding starts with
-// 0xEF (aiClass = CH_BOM) -- the get_token BOM case then accepts
-// exactly the full BOM sequence, because a lone U+FEFF *is* the BOM.
-int tk_class(int cp) {
-    if (cp == 0) { return CH_NUL }
-    if (cp >= 0x80) {
-        if (cp == 0xFEFF) { return CH_BOM }
-        return CH_ID
-    }
-    if (cp == 'x' || cp == 'X') { return CH_X }
-    if ((cp >= 'A' && cp <= 'W') || (cp >= 'a' && cp <= 'w')) { return CH_KYWD0 }
-    if ((cp >= 'Y' && cp <= 'Z') || (cp >= 'y' && cp <= 'z') || cp == '_') { return CH_KYWD }
-    if (tk_is_digit(cp)) { return CH_DIGIT }
-    if (cp == '$') { return CH_DOLLAR }
-    if (cp == '@' || cp == '#' || cp == ':') { return CH_VARALPHA }
-    if (cp == '?') { return CH_VARNUM }
-    if (tk_is_space(cp)) {
-        // Quirk of the C table: VT (0x0B) is CH_ILLEGAL as the FIRST
-        // byte of a token, even though it is whitespace inside a run.
-        if (cp == 11) { return CH_ILLEGAL }
-        return CH_SPACE
-    }
-    if (cp == '"' || cp == CH_SQUOTE || cp == '`') { return CH_QUOTE }
-    if (cp == '[') { return CH_QUOTE2 }
-    if (cp == '|') { return CH_PIPE }
-    if (cp == '-') { return CH_MINUS }
-    if (cp == '<') { return CH_LT }
-    if (cp == '>') { return CH_GT }
-    if (cp == '=') { return CH_EQ }
-    if (cp == '!') { return CH_BANG }
-    if (cp == '/') { return CH_SLASH }
-    if (cp == '(') { return CH_LP }
-    if (cp == ')') { return CH_RP }
-    if (cp == ';') { return CH_SEMI }
-    if (cp == '+') { return CH_PLUS }
-    if (cp == '*') { return CH_STAR }
-    if (cp == '%') { return CH_PERCENT }
-    if (cp == ',') { return CH_COMMA }
-    if (cp == '&') { return CH_AND }
-    if (cp == '~') { return CH_TILDA }
-    if (cp == '.') { return CH_DOT }
-    return CH_ILLEGAL
-}
-
-// Byte length of the character range [ci, cj) of sql.
-int tk_byte_len(string sql, int ci, int cj) {
-    int total = 0
-    for (int k = ci; k < cj; k++) {
-        total = total + tk_utf8_len(tk_cp(sql, k))
-    }
-    return total
 }

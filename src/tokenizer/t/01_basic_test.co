@@ -13,8 +13,8 @@ import tokenizer
 int failures = 0
 
 // Expectations are one string of "NAME:START:LEN" triples separated
-// by spaces ("" means: no tokens). Arrays cannot be passed as
-// literals to a call in Come, so a spec string is the compact form.
+// by spaces ("" means: no tokens) -- a compact notation for a
+// token stream.
 void expect(string sql, string spec) {
     var tz = tokenizer.create()
     tz.open(sql)
@@ -116,6 +116,27 @@ int main() {
     anchor("'s'", 118, 3)
     anchor("--c", 185, 3)
     anchor("!", 186, 1)
+
+    // get_token: sqlite3GetToken's own shape -- a (type, length)
+    // tuple for the token at a byte offset (cross-module since
+    // COIL-146). Types are also named via token_name().
+    string stmt = "SELECT 1"
+    (t0, n0) = tokenizer.get_token(stmt, 0)
+    if (t0 != 139 || n0 != 6 || tokenizer.token_name(t0).cmp("TK_SELECT") != 0) {
+        std.out.printf("FAIL get_token: got %d +%d, want TK_SELECT(139) +6\n", t0, n0)
+        failures = failures + 1
+    }
+    (t0, n0) = tokenizer.get_token(stmt, 7)
+    if (t0 != 156 || n0 != 1) {
+        std.out.printf("FAIL get_token @7: got %d +%d, want TK_INTEGER(156) +1\n", t0, n0)
+        failures = failures + 1
+    }
+    string stmt2 = "SELECT"
+    (t0, n0) = tokenizer.get_token(stmt2, 6)
+    if (t0 != 186 || n0 != 0) {
+        std.out.printf("FAIL get_token @end: got %d +%d, want TK_ILLEGAL(186) +0\n", t0, n0)
+        failures = failures + 1
+    }
 
     if (failures == 0) { std.out.printf("PASS: 01-basic\n") }
     return failures

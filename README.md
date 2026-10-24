@@ -30,10 +30,13 @@ and numbers that absorb trailing identifier characters as `TK_ILLEGAL`.
 
 ### API (module `tokenizer`)
 
-A cursor over the input, plus stateless helpers:
+The C function itself, plus a cursor over the input:
 
 ```come
 import tokenizer
+
+// sqlite3GetToken(sql, byte_pos) -> (type, byte_len)
+(t, n) = tokenizer.get_token(sql, pos)
 
 var tz = tokenizer.create()          // a tokenizer cursor instance
 tz.open(sql)                         // start scanning sql
@@ -52,28 +55,27 @@ int    tokenizer.keyword_code(word)            // TK_* or TK_ID
 string tokenizer.token_name(type)              // "TK_SELECT", "" if unknown
 ```
 
-The cursor mirrors how SQLite's parser drives `sqlite3GetToken()`:
-each step yields a token type and a **byte length** into the
-original input. Nothing is allocated per token — token text is
-always `sql` sliced by (byte offset, byte length), and
-`token_type_at`/`token_len_at` expose the same one-shot shape as
-the C function for callers that track positions themselves.
+`get_token` is `sqlite3GetToken` itself: a (type, byte length)
+tuple for the token at a byte offset. The cursor wraps it the way
+SQLite's parser drives it: each step yields a token type and a
+**byte length** into the original input, converting the input to
+bytes once at `open()`. Nothing is allocated per token — token
+text is always `sql` sliced by (byte offset, byte length).
 
 At end of input `next()` simply returns false; positionally,
-`token_type_at` at the end returns `TK_ILLEGAL` with length 0,
-exactly like `sqlite3GetToken()` on the terminating NUL — the
-parser layer above it (step 2, not part of this tasklet) is what
-turns that into `TK_SEMI`/EOF.
+`get_token` at the end returns `(TK_ILLEGAL, 0)`, exactly like
+`sqlite3GetToken()` on the terminating NUL — the parser layer
+above it (step 2, not part of this tasklet) is what turns that
+into `TK_SEMI`/EOF.
 
 Token type constants (`TK_SELECT`, …) are defined in
 `src/tokenizer/tokenizer.co` with the exact numeric values from
 SQLite's generated `parse.h`, and listed in
-[docs/TOKEN_MAP.md](docs/TOKEN_MAP.md). **Come limitation:**
-constants cannot yet be read from another module (Come spec §3.4
-gap), so callers compare against the raw values from the map or
-`tokenizer.token_name(t)` — see docs/COME_GAPS.md #1. The cursor
-shape itself is also gap-driven: tuple and struct returns do not
-survive module boundaries (COME_GAPS #7, #9).
+[docs/TOKEN_MAP.md](docs/TOKEN_MAP.md). Inside the module they
+are shared by every file (Come spec §3.4, COIL-148). They are
+not exported to importers — a module's export surface caps at
+64 symbols (docs/COME_GAPS.md #16) — so callers compare against
+the raw values from the map or `tokenizer.token_name(t)`.
 
 ### Build & test
 

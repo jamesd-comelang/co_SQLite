@@ -107,19 +107,9 @@ def write_header():
 
 
 def come_expr(s):
-    """A Come expression evaluating to s. Come string literals
-    cannot contain an escaped quote, so strings containing '"'
-    are built by concatenation with dq (sprintf("%c", '"'))."""
-    if '"' not in s:
-        return come_escape(s)
-    parts = s.split('"')
-    terms = []
-    for i, part in enumerate(parts):
-        if part:
-            terms.append(come_escape(part))
-        if i < len(parts) - 1:
-            terms.append("dq")
-    return " + ".join(terms)
+    """A Come string literal evaluating to s (escaped quotes
+    lex fine since COIL-143)."""
+    return come_escape(s)
 
 
 def write_come():
@@ -178,7 +168,6 @@ def write_come():
     out.append("}")
     out.append("")
     out.append("int main() {")
-    out.append('    string dq = sprintf("%c", \'"\')')
     out.append("    var tz = tokenizer.create()")
     for idx, sql in enumerate(CASES):
         tr = exp[idx]

@@ -9,8 +9,8 @@ import tokenizer
 int failures = 0
 
 // Expectations are one string of "NAME:START:LEN" triples separated
-// by spaces ("" means: no tokens). Arrays cannot be passed as
-// literals to a call in Come, so a spec string is the compact form.
+// by spaces ("" means: no tokens) -- a compact notation for a
+// token stream.
 void expect(string sql, string spec) {
     var tz = tokenizer.create()
     tz.open(sql)
@@ -39,7 +39,6 @@ void expect(string sql, string spec) {
     tz.destroy()
 }
 int main() {
-    string dq = sprintf("%c", '"')
     // String literals: '' is an escaped quote, not the end.
     expect("'abc'", "TK_STRING:0:5")
     expect("'it''s'", "TK_STRING:0:7")
@@ -50,13 +49,13 @@ int main() {
     expect("'", "TK_ILLEGAL:0:1")
 
     // Quoted identifiers: "...", `...`, [...]; all TK_ID.
-    expect(dq + "my col" + dq, "TK_ID:0:8")
+    expect("\"my col\"", "TK_ID:0:8")
     expect("`weird`", "TK_ID:0:7")
-    expect(dq + "a" + dq + dq + "b" + dq, "TK_ID:0:6")
+    expect("\"a\"\"b\"", "TK_ID:0:6")
     expect("[a b]", "TK_ID:0:5")
     expect("[]", "TK_ID:0:2")
     expect("[a", "TK_ILLEGAL:0:2")
-    expect(dq + "unterm", "TK_ILLEGAL:0:7")
+    expect("\"unterm", "TK_ILLEGAL:0:7")
 
     // Integers and floats.
     expect("42", "TK_INTEGER:0:2")

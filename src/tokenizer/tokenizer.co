@@ -2,10 +2,36 @@ module tokenizer
 
 import string
 
-// Only the public API is exported; the tk_* internals stay
-// module-private (their tuple returns do not survive an importer
-// boundary in current Come -- docs/COME_GAPS.md #7).
+// tokenizer.co -- SQLite's SQL tokenizer, ported to Come.
+//
+// A faithful port of sqlite3GetToken() from SQLite's src/tokenize.c
+// (trunk f879fb1). Token codes live below (generated from parse.h),
+// keyword lookup in keywords.co, character classes in chars.co,
+// token names in names.co -- all one module: tokenizer. SQLite is
+// public domain; see docs/PROVENANCE.md.
+//
+// The scanner works on the input's BYTES, exactly like the C
+// code: sql.byte_array() hands over the UTF-8 bytes (that call
+// reaches its runtime since COIL-141), and every offset/length
+// in the API is a byte offset, as in C. The only inputs that
+// cannot be scanned are ones a Come string cannot hold at all
+// (embedded NUL, invalid UTF-8) -- see docs/BEHAVIOR.md.
+//
+// Public API:
+//   (type, byte_len) = get_token(sql, byte_pos)  -- sqlite3GetToken
+//   code = keyword_code(word)                    -- TK_* or TK_ID
+//   name = token_name(type)                      -- "TK_SELECT" or ""
+//   cursor: var tz = tokenizer.create(); tz.open/next/typ/...
+//
+// Token constants (TK_*) are shared by every file of this
+// module (spec 3.4, COIL-148), but they are not exported:
+// a module's export surface caps at 64 symbols and silently
+// drops the rest (docs/COME_GAPS.md #16), and 186 constants
+// do not fit. Callers compare token_name() or the raw values
+// in docs/TOKEN_MAP.md.
+
 export (
+    (int, int) get_token(string sql, int byte_pos),
     void open(string sql),
     bool next(),
     int typ(),
@@ -18,32 +44,6 @@ export (
     int keyword_code(string word),
     string token_name(int t),
 )
-
-// tokenizer.co -- SQLite's SQL tokenizer, ported to Come.
-//
-// A faithful port of sqlite3GetToken() from SQLite's src/tokenize.c
-// (trunk f879fb1). Token codes live in tokens.co, keyword lookup in
-// keywords.co, token names in names.co (all one module: tokenizer).
-// SQLite is public domain; see docs/PROVENANCE.md.
-//
-// The one structural adaptation: C scans a NUL-terminated byte
-// string, Come strings are immutable UTF-8 and character-first
-// (s[i] is a codepoint, .length() counts characters). This port
-// scans by codepoint and converts token extents back to BYTE
-// offsets/lengths with tk_utf8_len(), so the public API is
-// byte-exact like the C one for every valid-UTF-8 input. Inputs a
-// Come string cannot hold at all (embedded NUL, invalid UTF-8)
-// are documented in docs/BEHAVIOR.md.
-//
-// Public API:
-//   (type, byte_len) = get_token(sql, byte_pos)  -- sqlite3GetToken
-//   code = keyword_code(word)                    -- TK_* or TK_ID
-//   name = token_name(type)                      -- "TK_SELECT" or ""
-//
-// Token constants (TK_*) are defined in tokens.co with SQLite's
-// values (below). Come cannot yet read another module's
-// constants (spec 3.4 gap, docs/COME_GAPS.md #1), so callers
-// compare against token_name() or docs/TOKEN_MAP.md.
 
 // Token codes: SQLite parse.h values, generated. Do not edit the
 // marked block by hand; regenerate with tools/gen_token_data.py.
@@ -238,18 +238,14 @@ const (
 // END GENERATED: token-consts
 )
 
-// The single-quote codepoint. Written as a number because Come's
-// lexer cannot tokenize a single-quote character literal at all
-// (neither '\'' nor ''' parses) -- docs/COME_GAPS.md #5.
-
-// NOTE: the CC_* constants are declared again here (same
-// values as chars.co) because Come resolves constants per
-// file, not per module -- docs/COME_GAPS.md #6.
+// The single-quote byte. (Written as a named constant for
+// readability; the ''' literal itself lexes since COIL-143.)
 const CP_SQUOTE = 39
 
 // Character classes, mirroring aiClass[] in tokenize.c. The numeric
 // values are SQLite's own (the ordering matters: get_token's keyword
-// path compares class <= CC_KYWD).
+// path compares class <= CC_KYWD). Declared here once; chars.co
+// and keywords.co use them directly (module constants, COIL-148).
 const (
     CC_X = 0,
     CC_KYWD0 = 1,
@@ -284,131 +280,99 @@ const (
     CC_BOM = 30,
 )
 
-
 // ----------------------------------------------------------------
-// get_token -- sqlite3GetToken().
+// The scanner core: sqlite3GetToken() over bytes.
 //
-// Returns (token_type, byte_length) for the token that begins at
-// byte offset byte_pos of sql. At end of input (or on an embedded
-// NUL codepoint) returns (TK_ILLEGAL, 0), exactly like the C code
-// reading the terminating NUL. A byte_pos that lands in the middle
-// of a multi-byte codepoint cannot be addressed in Come's
-// character-first strings; it returns (TK_ILLEGAL, 1) -- see
-// docs/BEHAVIOR.md.
+// tk_scan(b, pos, sql) returns (token_type, byte_length) for
+// the token starting at byte offset pos of b (sql is the string
+// b came from, used only to cut out keyword candidates).
+// Past-the-end bytes read as 0, like C's NUL.
 
-void tk_get_token(string sql, int byte_pos) {
-    int n = sql.length()
-    var total_bytes = sql.bytesize()
-    if (byte_pos < 0 || byte_pos >= total_bytes) {
-        tk_rt = TK_ILLEGAL; tk_rn = 0; return
-    }
-    // Convert the byte offset to a character index.
-    int ci = 0
-    int b = 0
-    while (b < byte_pos) {
-        b = b + tk_utf8_len(tk_cp(sql, ci))
-        ci = ci + 1
-    }
-    if (b != byte_pos) {
-        tk_rt = TK_ILLEGAL; tk_rn = 1; return
-    }
-
-    int c0 = tk_cp(sql, ci)
+(int, int) tk_scan(byte[] b, int pos, string sql) {
+    int c0 = tk_byte(b, pos)
     int cls = tk_class(c0)
 
     if (cls == CC_SPACE) {
-        int j = ci + 1
-        while (j < n && tk_is_space(tk_cp(sql, j))) {
-            j = j + 1
-        }
-        tk_rt = TK_SPACE; tk_rn = tk_byte_len(sql, ci, j); return
+        int j = pos + 1
+        while (tk_is_space(tk_byte(b, j))) { j = j + 1 }
+        return TK_SPACE, j - pos
     }
     if (cls == CC_BOM) {
-        // U+FEFF in a Come string is exactly the 3 bytes EF BB BF.
-        tk_rt = TK_SPACE; tk_rn = tk_byte_len(sql, ci, ci + 1); return
+        if (tk_byte(b, pos + 1) == 0xBB && tk_byte(b, pos + 2) == 0xBF) {
+            return TK_SPACE, 3
+        }
+        return TK_ID, tk_id_len(b, pos)
     }
     if (cls == CC_NUL) {
-        tk_rt = TK_ILLEGAL; tk_rn = 0; return
+        return TK_ILLEGAL, 0
     }
     if (cls == CC_MINUS) {
-        if (tk_cp(sql, ci + 1) == '-') {
-            int j = ci + 2
-            while (j < n && tk_cp(sql, j) != '\n') {
-                j = j + 1
-            }
-            tk_rt = TK_COMMENT; tk_rn = tk_byte_len(sql, ci, j); return
+        if (tk_byte(b, pos + 1) == '-') {
+            int j = pos + 2
+            while (tk_byte(b, j) != '\n' && tk_byte(b, j) != 0) { j = j + 1 }
+            return TK_COMMENT, j - pos
         }
-        if (tk_cp(sql, ci + 1) == '>') {
-            int j = ci + 2
-            if (tk_cp(sql, ci + 2) == '>') {
-                j = j + 1
-            }
-            tk_rt = TK_PTR; tk_rn = tk_byte_len(sql, ci, j); return
+        if (tk_byte(b, pos + 1) == '>') {
+            int n = 2
+            if (tk_byte(b, pos + 2) == '>') { n = 3 }
+            return TK_PTR, n
         }
-        tk_rt = TK_MINUS; tk_rn = tk_byte_len(sql, ci, ci + 1); return
+        return TK_MINUS, 1
     }
-    if (cls == CC_LP) { tk_rt = TK_LP; tk_rn = tk_byte_len(sql, ci, ci + 1); return }
-    if (cls == CC_RP) { tk_rt = TK_RP; tk_rn = tk_byte_len(sql, ci, ci + 1); return }
-    if (cls == CC_SEMI) { tk_rt = TK_SEMI; tk_rn = tk_byte_len(sql, ci, ci + 1); return }
-    if (cls == CC_PLUS) { tk_rt = TK_PLUS; tk_rn = tk_byte_len(sql, ci, ci + 1); return }
-    if (cls == CC_STAR) { tk_rt = TK_STAR; tk_rn = tk_byte_len(sql, ci, ci + 1); return }
-    if (cls == CC_PERCENT) { tk_rt = TK_REM; tk_rn = tk_byte_len(sql, ci, ci + 1); return }
-    if (cls == CC_COMMA) { tk_rt = TK_COMMA; tk_rn = tk_byte_len(sql, ci, ci + 1); return }
-    if (cls == CC_AND) { tk_rt = TK_BITAND; tk_rn = tk_byte_len(sql, ci, ci + 1); return }
-    if (cls == CC_TILDA) { tk_rt = TK_BITNOT; tk_rn = tk_byte_len(sql, ci, ci + 1); return }
+    if (cls == CC_LP) { return TK_LP, 1 }
+    if (cls == CC_RP) { return TK_RP, 1 }
+    if (cls == CC_SEMI) { return TK_SEMI, 1 }
+    if (cls == CC_PLUS) { return TK_PLUS, 1 }
+    if (cls == CC_STAR) { return TK_STAR, 1 }
+    if (cls == CC_PERCENT) { return TK_REM, 1 }
+    if (cls == CC_COMMA) { return TK_COMMA, 1 }
+    if (cls == CC_AND) { return TK_BITAND, 1 }
+    if (cls == CC_TILDA) { return TK_BITNOT, 1 }
     if (cls == CC_SLASH) {
-        if (tk_cp(sql, ci + 1) != '*' || tk_cp(sql, ci + 2) == 0) {
-            tk_rt = TK_SLASH; tk_rn = tk_byte_len(sql, ci, ci + 1); return
+        if (tk_byte(b, pos + 1) != '*' || tk_byte(b, pos + 2) == 0) {
+            return TK_SLASH, 1
         }
-        int j = ci + 2
-        while (j < n) {
-            if (tk_cp(sql, j) == '*' && tk_cp(sql, j + 1) == '/') {
-                tk_rt = TK_COMMENT; tk_rn = tk_byte_len(sql, ci, j + 2); return
+        int j = pos + 2
+        while (tk_byte(b, j) != 0) {
+            if (tk_byte(b, j) == '*' && tk_byte(b, j + 1) == '/') {
+                return TK_COMMENT, j + 2 - pos
             }
             j = j + 1
         }
-        tk_rt = TK_COMMENT; tk_rn = tk_byte_len(sql, ci, j); return
+        return TK_COMMENT, j - pos
     }
     if (cls == CC_EQ) {
-        int j = ci + 1
-        if (tk_cp(sql, ci + 1) == '=') {
-            j = j + 1
-        }
-        tk_rt = TK_EQ; tk_rn = tk_byte_len(sql, ci, j); return
+        if (tk_byte(b, pos + 1) == '=') { return TK_EQ, 2 }
+        return TK_EQ, 1
     }
     if (cls == CC_LT) {
-        int c1 = tk_cp(sql, ci + 1)
-        if (c1 == '=') { tk_rt = TK_LE; tk_rn = tk_byte_len(sql, ci, ci + 2); return }
-        if (c1 == '>') { tk_rt = TK_NE; tk_rn = tk_byte_len(sql, ci, ci + 2); return }
-        if (c1 == '<') { tk_rt = TK_LSHIFT; tk_rn = tk_byte_len(sql, ci, ci + 2); return }
-        tk_rt = TK_LT; tk_rn = tk_byte_len(sql, ci, ci + 1); return
+        int c1 = tk_byte(b, pos + 1)
+        if (c1 == '=') { return TK_LE, 2 }
+        if (c1 == '>') { return TK_NE, 2 }
+        if (c1 == '<') { return TK_LSHIFT, 2 }
+        return TK_LT, 1
     }
     if (cls == CC_GT) {
-        int c1 = tk_cp(sql, ci + 1)
-        if (c1 == '=') { tk_rt = TK_GE; tk_rn = tk_byte_len(sql, ci, ci + 2); return }
-        if (c1 == '>') { tk_rt = TK_RSHIFT; tk_rn = tk_byte_len(sql, ci, ci + 2); return }
-        tk_rt = TK_GT; tk_rn = tk_byte_len(sql, ci, ci + 1); return
+        int c1 = tk_byte(b, pos + 1)
+        if (c1 == '=') { return TK_GE, 2 }
+        if (c1 == '>') { return TK_RSHIFT, 2 }
+        return TK_GT, 1
     }
     if (cls == CC_BANG) {
-        if (tk_cp(sql, ci + 1) != '=') {
-            tk_rt = TK_ILLEGAL; tk_rn = tk_byte_len(sql, ci, ci + 1); return
-        }
-        tk_rt = TK_NE; tk_rn = tk_byte_len(sql, ci, ci + 2); return
+        if (tk_byte(b, pos + 1) != '=') { return TK_ILLEGAL, 1 }
+        return TK_NE, 2
     }
     if (cls == CC_PIPE) {
-        if (tk_cp(sql, ci + 1) != '|') {
-            tk_rt = TK_BITOR; tk_rn = tk_byte_len(sql, ci, ci + 1); return
-        }
-        tk_rt = TK_CONCAT; tk_rn = tk_byte_len(sql, ci, ci + 2); return
+        if (tk_byte(b, pos + 1) != '|') { return TK_BITOR, 1 }
+        return TK_CONCAT, 2
     }
     if (cls == CC_QUOTE) {
         int delim = c0
-        int j = ci + 1
+        int j = pos + 1
         bool closed = false
-        while (j < n) {
-            int c = tk_cp(sql, j)
-            if (c == delim) {
-                if (tk_cp(sql, j + 1) == delim) {
+        while (tk_byte(b, j) != 0) {
+            if (tk_byte(b, j) == delim) {
+                if (tk_byte(b, j + 1) == delim) {
                     j = j + 2
                 } else {
                     closed = true
@@ -419,144 +383,110 @@ void tk_get_token(string sql, int byte_pos) {
             }
         }
         if (closed) {
-            if (delim == CP_SQUOTE) {
-                tk_rt = TK_STRING; tk_rn = tk_byte_len(sql, ci, j + 1); return
-            }
-            tk_rt = TK_ID; tk_rn = tk_byte_len(sql, ci, j + 1); return
+            if (delim == CP_SQUOTE) { return TK_STRING, j + 1 - pos }
+            return TK_ID, j + 1 - pos
         }
-        tk_rt = TK_ILLEGAL; tk_rn = tk_byte_len(sql, ci, j); return
+        return TK_ILLEGAL, j - pos
     }
     if (cls == CC_QUOTE2) {
-        int j = ci + 1
-        while (j < n && tk_cp(sql, j) != ']') {
-            j = j + 1
-        }
-        if (j < n) {
-            tk_rt = TK_ID; tk_rn = tk_byte_len(sql, ci, j + 1); return
-        }
-        tk_rt = TK_ILLEGAL; tk_rn = tk_byte_len(sql, ci, j); return
+        int j = pos + 1
+        while (tk_byte(b, j) != 0 && tk_byte(b, j) != ']') { j = j + 1 }
+        if (tk_byte(b, j) == ']') { return TK_ID, j + 1 - pos }
+        return TK_ILLEGAL, j - pos
     }
     if (cls == CC_DOT) {
-        if (!tk_is_digit(tk_cp(sql, ci + 1))) {
-            tk_rt = TK_DOT; tk_rn = tk_byte_len(sql, ci, ci + 1); return
-        }
-        tk_number(sql, ci)
-            return
+        if (!tk_is_digit(tk_byte(b, pos + 1))) { return TK_DOT, 1 }
+        return tk_number(b, pos)
     }
     if (cls == CC_DIGIT) {
-        tk_number(sql, ci)
-            return
+        return tk_number(b, pos)
     }
     if (cls == CC_VARNUM) {
-        int j = ci + 1
-        while (j < n && tk_is_digit(tk_cp(sql, j))) {
-            j = j + 1
-        }
-        tk_rt = TK_VARIABLE; tk_rn = tk_byte_len(sql, ci, j); return
+        int j = pos + 1
+        while (tk_is_digit(tk_byte(b, j))) { j = j + 1 }
+        return TK_VARIABLE, j - pos
     }
     if (cls == CC_DOLLAR || cls == CC_VARALPHA) {
-        tk_variable(sql, ci)
-            return
+        return tk_variable(b, pos)
     }
     if (cls == CC_KYWD0) {
-        if (tk_class(tk_cp(sql, ci + 1)) > CC_KYWD) {
-            // A lone keyword-start letter: an identifier, with its
-            // IdChar tail (which the C code reaches via break).
-            tk_id(sql, ci)
-            return
+        if (tk_class(tk_byte(b, pos + 1)) > CC_KYWD) {
+            // A lone keyword-start letter: an identifier.
+            return TK_ID, tk_id_len(b, pos)
         }
-        int j = ci + 2
-        while (j < n && tk_class(tk_cp(sql, j)) <= CC_KYWD) {
-            j = j + 1
-        }
-        if (j < n && tk_is_idchar(tk_cp(sql, j))) {
+        int j = pos + 2
+        while (tk_class(tk_byte(b, j)) <= CC_KYWD && tk_byte(b, j) != 0) { j = j + 1 }
+        if (tk_is_idchar(tk_byte(b, j))) {
             // Keyword-shaped, but continues with a digit, '$' or a
-            // non-ASCII character: an identifier.
-            tk_id(sql, ci)
-            return
+            // byte >= 0x80: an identifier.
+            return TK_ID, tk_id_len(b, pos)
         }
-        int code = keyword_code(sql.substr(ci, j))
-        tk_rt = code; tk_rn = tk_byte_len(sql, ci, j); return
+        // The run is pure ASCII, so char length == byte length.
+        int ci = tk_char_index(b, pos)
+        string word = sql.substr(ci, ci + (j - pos))
+        return keyword_code(word), j - pos
     }
     if (cls == CC_X) {
-        if (tk_cp(sql, ci + 1) == CP_SQUOTE) {
+        if (tk_byte(b, pos + 1) == CP_SQUOTE) {
             // BLOB literal: x'...', hex digits only, even in count.
-            int j = ci + 2
-            while (j < n && tk_is_xdigit(tk_cp(sql, j))) {
-                j = j + 1
-            }
+            int j = pos + 2
+            while (tk_is_xdigit(tk_byte(b, j))) { j = j + 1 }
             bool bad = false
-            if (tk_cp(sql, j) != CP_SQUOTE || (j - ci) % 2 == 1) {
+            if (tk_byte(b, j) != CP_SQUOTE || (j - pos) % 2 == 1) {
                 bad = true
             }
             if (bad) {
-                while (j < n && tk_cp(sql, j) != CP_SQUOTE) {
-                    j = j + 1
-                }
+                while (tk_byte(b, j) != 0 && tk_byte(b, j) != CP_SQUOTE) { j = j + 1 }
             }
-            if (j < n) {
-                j = j + 1
-            }
-            if (bad) {
-                tk_rt = TK_ILLEGAL; tk_rn = tk_byte_len(sql, ci, j); return
-            }
-            tk_rt = TK_BLOB; tk_rn = tk_byte_len(sql, ci, j); return
+            if (tk_byte(b, j) != 0) { j = j + 1 }
+            if (bad) { return TK_ILLEGAL, j - pos }
+            return TK_BLOB, j - pos
         }
-        tk_id(sql, ci)
-            return
+        return TK_ID, tk_id_len(b, pos)
     }
-    if (cls == CC_KYWD || cls == CC_ID || cls == CC_BOM) {
-        tk_id(sql, ci)
-            return
+    if (cls == CC_KYWD || cls == CC_ID) {
+        return TK_ID, tk_id_len(b, pos)
     }
-    // CC_ILLEGAL and anything unhandled: one character, TK_ILLEGAL.
-    tk_rt = TK_ILLEGAL; tk_rn = tk_byte_len(sql, ci, ci + 1); return
+    // CC_ILLEGAL and anything unhandled: one byte, TK_ILLEGAL.
+    return TK_ILLEGAL, 1
 }
 
+// Byte length of the identifier starting at pos: the first byte
+// plus the IdChar run after it (the C code's fall-through tail).
+int tk_id_len(byte[] b, int pos) {
+    int j = pos + 1
+    while (tk_is_idchar(tk_byte(b, j))) { j = j + 1 }
+    return j - pos
+}
 
-// Scan-result registers. The internal scanners report through
-// these module variables instead of tuple returns, because a
-// tuple-returning function cannot be used across a file or module
-// boundary in current Come (docs/COME_GAPS.md #7) -- an importer
-// would receive prototypes referencing undefined result types.
-// This mirrors the C code's out-parameters in a form Come can
-// express. tk_j/tk_t are the in/out pair of tk_scan_digits.
-int tk_rt = 0
-int tk_rn = 0
-int tk_j = 0
-int tk_t = 0
-
-void tk_scan_digits(string sql) {
-    int n = sql.length()
-    while (tk_j < n) {
-        int c = tk_cp(sql, tk_j)
+// Digit run with '_' separators (SQLITE_DIGIT_SEPARATOR), shared
+// by tk_number: returns (new_pos, new_type) -- '_' in the run
+// makes the token a TK_QNUMBER.
+(int, int) tk_scan_digits(byte[] b, int j, int t) {
+    while (true) {
+        int c = tk_byte(b, j)
         if (tk_is_digit(c)) {
-            tk_j = tk_j + 1
+            j = j + 1
         } else if (c == '_') {
-            tk_t = TK_QNUMBER
-            tk_j = tk_j + 1
+            t = TK_QNUMBER
+            j = j + 1
         } else {
             break
         }
     }
-    return
+    return j, t
 }
 
-
-// ----------------------------------------------------------------
-// Number scanning (CC_DIGIT, and CC_DOT when a digit follows), shared
-// by get_token exactly as in the C code, where CC_DOT falls through
-// into CC_DIGIT.
-
-void tk_number(string sql, int ci) {
-    int n = sql.length()
+// Number scanning (CC_DIGIT, and CC_DOT when a digit follows),
+// exactly the C control flow.
+(int, int) tk_number(byte[] b, int pos) {
     int t = TK_INTEGER
-    int j = ci
-    if (tk_cp(sql, ci) == '0' && (tk_cp(sql, ci + 1) == 'x' || tk_cp(sql, ci + 1) == 'X') && tk_is_xdigit(tk_cp(sql, ci + 2))) {
+    int j = pos
+    if (tk_byte(b, pos) == '0' && (tk_byte(b, pos + 1) == 'x' || tk_byte(b, pos + 1) == 'X') && tk_is_xdigit(tk_byte(b, pos + 2))) {
         // Hexadecimal integer, 0x...
-        j = ci + 3
-        while (j < n) {
-            int c = tk_cp(sql, j)
+        j = pos + 3
+        while (true) {
+            int c = tk_byte(b, j)
             if (tk_is_xdigit(c)) {
                 j = j + 1
             } else if (c == '_') {
@@ -567,102 +497,90 @@ void tk_number(string sql, int ci) {
             }
         }
     } else {
-        tk_j = j; tk_t = t; tk_scan_digits(sql); j = tk_j; t = tk_t
-        if (tk_cp(sql, j) == '.') {
+        (j, t) = tk_scan_digits(b, j, t)
+        if (tk_byte(b, j) == '.') {
             if (t == TK_INTEGER) { t = TK_FLOAT }
             j = j + 1
-            tk_j = j; tk_t = t; tk_scan_digits(sql); j = tk_j; t = tk_t
+            (j, t) = tk_scan_digits(b, j, t)
         }
-        int e = tk_cp(sql, j)
-        if ((e == 'e' || e == 'E') && (tk_is_digit(tk_cp(sql, j + 1)) || ((tk_cp(sql, j + 1) == '+' || tk_cp(sql, j + 1) == '-') && tk_is_digit(tk_cp(sql, j + 2))))) {
+        int e = tk_byte(b, j)
+        if ((e == 'e' || e == 'E') && (tk_is_digit(tk_byte(b, j + 1)) || ((tk_byte(b, j + 1) == '+' || tk_byte(b, j + 1) == '-') && tk_is_digit(tk_byte(b, j + 2))))) {
             if (t == TK_INTEGER) { t = TK_FLOAT }
             j = j + 2
-            tk_j = j; tk_t = t; tk_scan_digits(sql); j = tk_j; t = tk_t
+            (j, t) = tk_scan_digits(b, j, t)
         }
     }
     // A number directly followed by identifier characters is one
     // illegal token in SQLite ("1e", "0xG", "123abc").
-    while (j < n && tk_is_idchar(tk_cp(sql, j))) {
+    while (tk_is_idchar(tk_byte(b, j))) {
         t = TK_ILLEGAL
         j = j + 1
     }
-    tk_rt = t
-    tk_rn = tk_byte_len(sql, ci, j)
-    return
+    return t, j - pos
 }
 
 // Variable scanning (CC_DOLLAR and CC_VARALPHA): $, @, :, # names,
 // including the Tcl-style $name(...) form (SQLITE_OMIT_TCL_VARIABLE
 // is not defined in a default build).
-void tk_variable(string sql, int ci) {
-    int n = sql.length()
+(int, int) tk_variable(byte[] b, int pos) {
     int t = TK_VARIABLE
     int cnt = 0
-    int j = ci + 1
+    int j = pos + 1
     bool done = false
-    while (j < n && !done) {
-        int c = tk_cp(sql, j)
-        if (tk_is_idchar(c)) {
+    while (!done) {
+        int c = tk_byte(b, j)
+        if (c == 0) {
+            done = true
+        } else if (tk_is_idchar(c)) {
             cnt = cnt + 1
             j = j + 1
         } else if (c == '(' && cnt > 0) {
             j = j + 1
-            while (j < n && !tk_is_space(tk_cp(sql, j)) && tk_cp(sql, j) != ')') {
+            while (true) {
+                int d = tk_byte(b, j)
+                if (d == 0 || tk_is_space(d) || d == ')') { break }
                 j = j + 1
             }
-            if (j < n && tk_cp(sql, j) == ')') {
+            if (tk_byte(b, j) == ')') {
                 j = j + 1
             } else {
                 t = TK_ILLEGAL
             }
             done = true
-        } else if (c == ':' && tk_cp(sql, j + 1) == ':') {
+        } else if (c == ':' && tk_byte(b, j + 1) == ':') {
             j = j + 2
         } else {
             done = true
         }
     }
     if (cnt == 0) { t = TK_ILLEGAL }
-    tk_rt = t
-    tk_rn = tk_byte_len(sql, ci, j)
-    return
+    return t, j - pos
 }
-
-// Identifier tail shared by the CC_KYWD / CC_ID / CC_X cases: the
-// first character is already known to start an identifier; consume
-// the IdChar run.
-void tk_id(string sql, int ci) {
-    int n = sql.length()
-    int j = ci + 1
-    while (j < n && tk_is_idchar(tk_cp(sql, j))) {
-        j = j + 1
-    }
-    tk_rt = TK_ID
-    tk_rn = tk_byte_len(sql, ci, j)
-    return
-}
-
-
 
 // ----------------------------------------------------------------
 // Public API
-//
-// tk_get_token above is the faithful sqlite3GetToken port, but its
-// (type, len) tuple cannot be destructured by code in another
-// module in current Come (docs/COME_GAPS.md #7), and a struct
-// return does not survive the module boundary either (#9). The
-// public surface is therefore scalar functions plus a cursor.
+
+// get_token -- sqlite3GetToken(): (token_type, byte_length) for
+// the token that begins at byte offset byte_pos of sql. At end of
+// input returns (TK_ILLEGAL, 0), exactly like the C code reading
+// the terminating NUL.
+(int, int) get_token(string sql, int byte_pos) {
+    if (byte_pos < 0) { return TK_ILLEGAL, 0 }
+    byte[] b = sql.byte_array()
+    if (byte_pos >= b.length()) { return TK_ILLEGAL, 0 }
+    return tk_scan(b, byte_pos, sql)
+}
 
 // token_type_at: the type of the token starting at byte_pos.
 int token_type_at(string sql, int byte_pos) {
-    tk_get_token(sql, byte_pos)
-    return tk_rt
+    (t, _) = get_token(sql, byte_pos)
+    return t
 }
 
 // token_len_at: the byte length of the token starting at byte_pos.
 int token_len_at(string sql, int byte_pos) {
-    tk_get_token(sql, byte_pos)
-    return tk_rn
+    (_, n) = get_token(sql, byte_pos)
+    return n
 }
 
 // The text of the token at (byte_start, byte_len) in sql.
@@ -682,6 +600,7 @@ string token_text(string sql, int byte_start, int byte_len) {
     return sql.substr(ci, cj)
 }
 
+// ----------------------------------------------------------------
 // Cursor API (stateful: use through an instance).
 //
 //   var tz = tokenizer.create()
@@ -692,9 +611,13 @@ string token_text(string sql, int byte_start, int byte_len) {
 //
 // next() returns false at end of input, with typ() == TK_ILLEGAL
 // and len() == 0 -- the same signal sqlite3GetToken gives on the
-// terminating NUL.
+// terminating NUL. The cursor converts the input to bytes once
+// (open) and builds the keyword table once (the kw_table
+// initializer below), where the one-shot get_token pays both
+// costs per call.
 
 string tz_sql = ""
+byte[] tz_bytes
 int tz_pos = 0
 int tz_start = 0
 int tz_typ = 0
@@ -702,6 +625,7 @@ int tz_len = 0
 
 void open(string sql) {
     tz_sql = sql
+    tz_bytes = sql.byte_array()
     tz_pos = 0
     tz_start = 0
     tz_typ = 0
@@ -709,20 +633,20 @@ void open(string sql) {
 }
 
 bool next() {
-    if (tz_pos >= tz_sql.bytesize()) {
+    if (tz_pos >= tz_bytes.length()) {
         tz_start = tz_pos
         tz_typ = TK_ILLEGAL
         tz_len = 0
         return false
     }
-    tk_get_token(tz_sql, tz_pos)
+    (t, n) = tk_scan(tz_bytes, tz_pos, tz_sql)
     tz_start = tz_pos
-    tz_typ = tk_rt
-    tz_len = tk_rn
-    if (tk_rn == 0) {
+    tz_typ = t
+    tz_len = n
+    if (n == 0) {
         return false
     }
-    tz_pos = tz_pos + tk_rn
+    tz_pos = tz_pos + n
     return true
 }
 
