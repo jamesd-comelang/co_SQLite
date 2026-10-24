@@ -1,0 +1,557 @@
+module tokenizer
+
+import string
+
+// fastscan.co -- EXPERIMENTAL (perf-experiments branch only).
+//
+// A single-function scanner: the same tokenization as tk_scan
+// (tokenizer.co, faithful port of sqlite3GetToken), restructured
+// the way the performance research recommends: one function, no
+// per-byte helper calls, byte reads and predicates inlined,
+// run loops instead of per-byte dispatch. It is NOT part of the
+// faithful port -- it lives here only so it can reuse the
+// module's TK_*/CC_* constants, keyword table, and cursor state
+// for an apples-to-apples trial.
+//
+// Byte reads: past-the-end reads as 0, exactly like tk_byte
+// (the C code's terminating NUL). In-range bytes are never 0
+// (a Come string cannot hold an embedded NUL), so a run loop
+// bounded by j < n stops exactly where the C code's != 0 test
+// would stop. Every branch below mirrors its tk_scan branch;
+// any divergence is a bug, caught by the differential test
+// (fast_scan vs get_token over the corpus and fuzz seeds).
+
+// Byte at j of b, or 0 past the end. Written out at each use
+// site (Come has no macros); the pattern is always:
+//   int c = 0
+//   if (j >= 0 && j < n) { c = int(b[j]); if (c < 0) { c = c + 256 } }
+
+(int, int) fast_scan(byte[] b, int pos, string sql, map{string, int} kw) {
+    int n = b.length()
+    int c0 = 0
+    if (pos >= 0 && pos < n) {
+        c0 = int(b[pos])
+        if (c0 < 0) { c0 = c0 + 256 }
+    }
+
+    // Whitespace run (CC_SPACE). VT (11) is CC_ILLEGAL as a first
+    // byte (tk_class quirk), so it is excluded here and falls
+    // through to the final TK_ILLEGAL.
+    if ((c0 == 32 || (c0 >= 9 && c0 <= 13)) && c0 != 11) {
+        int j = pos + 1
+        while (j < n) {
+            int c = int(b[j])
+            if (c < 0) { c = c + 256 }
+            if (!(c == 32 || (c >= 9 && c <= 13))) { break }
+            j = j + 1
+        }
+        return TK_SPACE, j - pos
+    }
+    // BOM (CC_BOM): EF BB BF is whitespace, else an identifier.
+    if (c0 == 0xEF) {
+        int c1 = 0
+        if (pos + 1 >= 0 && pos + 1 < n) {
+            c1 = int(b[pos + 1])
+            if (c1 < 0) { c1 = c1 + 256 }
+        }
+        int c2 = 0
+        if (pos + 2 >= 0 && pos + 2 < n) {
+            c2 = int(b[pos + 2])
+            if (c2 < 0) { c2 = c2 + 256 }
+        }
+        if (c1 == 0xBB && c2 == 0xBF) {
+            return TK_SPACE, 3
+        }
+        int j = pos + 1
+        while (j < n) {
+            int c = int(b[j])
+            if (c < 0) { c = c + 256 }
+            if (!(c >= 0x80 || (c >= '0' && c <= '9') || (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || c == '_' || c == '$')) { break }
+            j = j + 1
+        }
+        return TK_ID, j - pos
+    }
+    // NUL (CC_NUL): past the end.
+    if (c0 == 0) {
+        return TK_ILLEGAL, 0
+    }
+    // Minus (CC_MINUS): -- comment, -> / ->> pointer, else minus.
+    if (c0 == '-') {
+        int c1 = 0
+        if (pos + 1 >= 0 && pos + 1 < n) {
+            c1 = int(b[pos + 1])
+            if (c1 < 0) { c1 = c1 + 256 }
+        }
+        if (c1 == '-') {
+            int j = pos + 2
+            while (j < n) {
+                int c = int(b[j])
+                if (c < 0) { c = c + 256 }
+                if (c == '\n') { break }
+                j = j + 1
+            }
+            return TK_COMMENT, j - pos
+        }
+        if (c1 == '>') {
+            int nn = 2
+            int c2 = 0
+            if (pos + 2 >= 0 && pos + 2 < n) {
+                c2 = int(b[pos + 2])
+                if (c2 < 0) { c2 = c2 + 256 }
+            }
+            if (c2 == '>') { nn = 3 }
+            return TK_PTR, nn
+        }
+        return TK_MINUS, 1
+    }
+    // Single-byte tokens.
+    if (c0 == '(') { return TK_LP, 1 }
+    if (c0 == ')') { return TK_RP, 1 }
+    if (c0 == ';') { return TK_SEMI, 1 }
+    if (c0 == '+') { return TK_PLUS, 1 }
+    if (c0 == '*') { return TK_STAR, 1 }
+    if (c0 == '%') { return TK_REM, 1 }
+    if (c0 == ',') { return TK_COMMA, 1 }
+    if (c0 == '&') { return TK_BITAND, 1 }
+    if (c0 == '~') { return TK_BITNOT, 1 }
+    // Slash (CC_SLASH): /* comment or division.
+    if (c0 == '/') {
+        int c1 = 0
+        if (pos + 1 >= 0 && pos + 1 < n) {
+            c1 = int(b[pos + 1])
+            if (c1 < 0) { c1 = c1 + 256 }
+        }
+        int c2 = 0
+        if (pos + 2 >= 0 && pos + 2 < n) {
+            c2 = int(b[pos + 2])
+            if (c2 < 0) { c2 = c2 + 256 }
+        }
+        if (c1 != '*' || c2 == 0) {
+            return TK_SLASH, 1
+        }
+        int j = pos + 2
+        while (j < n) {
+            int c = int(b[j])
+            if (c < 0) { c = c + 256 }
+            int d = 0
+            if (j + 1 >= 0 && j + 1 < n) {
+                d = int(b[j + 1])
+                if (d < 0) { d = d + 256 }
+            }
+            if (c == '*' && d == '/') {
+                return TK_COMMENT, j + 2 - pos
+            }
+            j = j + 1
+        }
+        return TK_COMMENT, j - pos
+    }
+    // Equals, comparisons, bang, pipe.
+    if (c0 == '=') {
+        int c1 = 0
+        if (pos + 1 >= 0 && pos + 1 < n) {
+            c1 = int(b[pos + 1])
+            if (c1 < 0) { c1 = c1 + 256 }
+        }
+        if (c1 == '=') { return TK_EQ, 2 }
+        return TK_EQ, 1
+    }
+    if (c0 == '<') {
+        int c1 = 0
+        if (pos + 1 >= 0 && pos + 1 < n) {
+            c1 = int(b[pos + 1])
+            if (c1 < 0) { c1 = c1 + 256 }
+        }
+        if (c1 == '=') { return TK_LE, 2 }
+        if (c1 == '>') { return TK_NE, 2 }
+        if (c1 == '<') { return TK_LSHIFT, 2 }
+        return TK_LT, 1
+    }
+    if (c0 == '>') {
+        int c1 = 0
+        if (pos + 1 >= 0 && pos + 1 < n) {
+            c1 = int(b[pos + 1])
+            if (c1 < 0) { c1 = c1 + 256 }
+        }
+        if (c1 == '=') { return TK_GE, 2 }
+        if (c1 == '>') { return TK_RSHIFT, 2 }
+        return TK_GT, 1
+    }
+    if (c0 == '!') {
+        int c1 = 0
+        if (pos + 1 >= 0 && pos + 1 < n) {
+            c1 = int(b[pos + 1])
+            if (c1 < 0) { c1 = c1 + 256 }
+        }
+        if (c1 != '=') { return TK_ILLEGAL, 1 }
+        return TK_NE, 2
+    }
+    if (c0 == '|') {
+        int c1 = 0
+        if (pos + 1 >= 0 && pos + 1 < n) {
+            c1 = int(b[pos + 1])
+            if (c1 < 0) { c1 = c1 + 256 }
+        }
+        if (c1 != '|') { return TK_BITOR, 1 }
+        return TK_CONCAT, 2
+    }
+    // Quote (CC_QUOTE): 'string', "id", `id` with doubled delimiters.
+    if (c0 == '"' || c0 == CP_SQUOTE || c0 == '`') {
+        int delim = c0
+        int j = pos + 1
+        bool closed = false
+        while (j < n) {
+            int c = int(b[j])
+            if (c < 0) { c = c + 256 }
+            if (c == delim) {
+                int d = 0
+                if (j + 1 >= 0 && j + 1 < n) {
+                    d = int(b[j + 1])
+                    if (d < 0) { d = d + 256 }
+                }
+                if (d == delim) {
+                    j = j + 2
+                } else {
+                    closed = true
+                    break
+                }
+            } else {
+                j = j + 1
+            }
+        }
+        if (closed) {
+            if (delim == CP_SQUOTE) { return TK_STRING, j + 1 - pos }
+            return TK_ID, j + 1 - pos
+        }
+        return TK_ILLEGAL, j - pos
+    }
+    // Bracket quote (CC_QUOTE2): [id].
+    if (c0 == '[') {
+        int j = pos + 1
+        while (j < n) {
+            int c = int(b[j])
+            if (c < 0) { c = c + 256 }
+            if (c == ']') { break }
+            j = j + 1
+        }
+        if (j < n) { return TK_ID, j + 1 - pos }
+        return TK_ILLEGAL, j - pos
+    }
+    // Dot (CC_DOT): '.' alone, or a number starting with '.'.
+    if (c0 == '.') {
+        int c1 = 0
+        if (pos + 1 >= 0 && pos + 1 < n) {
+            c1 = int(b[pos + 1])
+            if (c1 < 0) { c1 = c1 + 256 }
+        }
+        if (!(c1 >= '0' && c1 <= '9')) { return TK_DOT, 1 }
+    }
+    // Number (CC_DIGIT, and CC_DOT when a digit follows).
+    // Inlined tk_number: hex, integer/float, exponent, '_' runs
+    // (TK_QNUMBER), trailing identifier characters (TK_ILLEGAL).
+    if (c0 == '.' || (c0 >= '0' && c0 <= '9')) {
+        int t = TK_INTEGER
+        int j = pos
+        int c1 = 0
+        if (pos + 1 >= 0 && pos + 1 < n) {
+            c1 = int(b[pos + 1])
+            if (c1 < 0) { c1 = c1 + 256 }
+        }
+        int c2 = 0
+        if (pos + 2 >= 0 && pos + 2 < n) {
+            c2 = int(b[pos + 2])
+            if (c2 < 0) { c2 = c2 + 256 }
+        }
+        if (c0 == '0' && (c1 == 'x' || c1 == 'X') && ((c2 >= '0' && c2 <= '9') || (c2 >= 'a' && c2 <= 'f') || (c2 >= 'A' && c2 <= 'F'))) {
+            j = pos + 3
+            while (j < n) {
+                int c = int(b[j])
+                if (c < 0) { c = c + 256 }
+                if ((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F')) {
+                    j = j + 1
+                } else if (c == '_') {
+                    t = TK_QNUMBER
+                    j = j + 1
+                } else {
+                    break
+                }
+            }
+        } else {
+            while (j < n) {
+                int c = int(b[j])
+                if (c < 0) { c = c + 256 }
+                if (c >= '0' && c <= '9') {
+                    j = j + 1
+                } else if (c == '_') {
+                    t = TK_QNUMBER
+                    j = j + 1
+                } else {
+                    break
+                }
+            }
+            int cj = 0
+            if (j >= 0 && j < n) {
+                cj = int(b[j])
+                if (cj < 0) { cj = cj + 256 }
+            }
+            if (cj == '.') {
+                if (t == TK_INTEGER) { t = TK_FLOAT }
+                j = j + 1
+                while (j < n) {
+                    int c = int(b[j])
+                    if (c < 0) { c = c + 256 }
+                    if (c >= '0' && c <= '9') {
+                        j = j + 1
+                    } else if (c == '_') {
+                        t = TK_QNUMBER
+                        j = j + 1
+                    } else {
+                        break
+                    }
+                }
+            }
+            int e = 0
+            if (j >= 0 && j < n) {
+                e = int(b[j])
+                if (e < 0) { e = e + 256 }
+            }
+            int e1 = 0
+            if (j + 1 >= 0 && j + 1 < n) {
+                e1 = int(b[j + 1])
+                if (e1 < 0) { e1 = e1 + 256 }
+            }
+            int e2 = 0
+            if (j + 2 >= 0 && j + 2 < n) {
+                e2 = int(b[j + 2])
+                if (e2 < 0) { e2 = e2 + 256 }
+            }
+            if ((e == 'e' || e == 'E') && ((e1 >= '0' && e1 <= '9') || ((e1 == '+' || e1 == '-') && (e2 >= '0' && e2 <= '9')))) {
+                if (t == TK_INTEGER) { t = TK_FLOAT }
+                j = j + 2
+                while (j < n) {
+                    int c = int(b[j])
+                    if (c < 0) { c = c + 256 }
+                    if (c >= '0' && c <= '9') {
+                        j = j + 1
+                    } else if (c == '_') {
+                        t = TK_QNUMBER
+                        j = j + 1
+                    } else {
+                        break
+                    }
+                }
+            }
+        }
+        while (j < n) {
+            int c = int(b[j])
+            if (c < 0) { c = c + 256 }
+            if (c >= 0x80 || (c >= '0' && c <= '9') || (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || c == '_' || c == '$') {
+                t = TK_ILLEGAL
+                j = j + 1
+            } else {
+                break
+            }
+        }
+        return t, j - pos
+    }
+    // Variable number (CC_VARNUM): ?123.
+    if (c0 == '?') {
+        int j = pos + 1
+        while (j < n) {
+            int c = int(b[j])
+            if (c < 0) { c = c + 256 }
+            if (!(c >= '0' && c <= '9')) { break }
+            j = j + 1
+        }
+        return TK_VARIABLE, j - pos
+    }
+    // Variable (CC_DOLLAR, CC_VARALPHA): inlined tk_variable.
+    if (c0 == '$' || c0 == '@' || c0 == '#' || c0 == ':') {
+        int t = TK_VARIABLE
+        int cnt = 0
+        int j = pos + 1
+        bool done = false
+        while (!done) {
+            int c = 0
+            if (j >= 0 && j < n) {
+                c = int(b[j])
+                if (c < 0) { c = c + 256 }
+            }
+            if (c == 0) {
+                done = true
+            } else if (c >= 0x80 || (c >= '0' && c <= '9') || (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || c == '_' || c == '$') {
+                cnt = cnt + 1
+                j = j + 1
+            } else if (c == '(' && cnt > 0) {
+                j = j + 1
+                while (true) {
+                    int d = 0
+                    if (j >= 0 && j < n) {
+                        d = int(b[j])
+                        if (d < 0) { d = d + 256 }
+                    }
+                    if (d == 0 || d == 32 || (d >= 9 && d <= 13) || d == ')') { break }
+                    j = j + 1
+                }
+                int dj = 0
+                if (j >= 0 && j < n) {
+                    dj = int(b[j])
+                    if (dj < 0) { dj = dj + 256 }
+                }
+                if (dj == ')') {
+                    j = j + 1
+                } else {
+                    t = TK_ILLEGAL
+                }
+                done = true
+            } else if (c == ':') {
+                int d = 0
+                if (j + 1 >= 0 && j + 1 < n) {
+                    d = int(b[j + 1])
+                    if (d < 0) { d = d + 256 }
+                }
+                if (d == ':') {
+                    j = j + 2
+                } else {
+                    done = true
+                }
+            } else {
+                done = true
+            }
+        }
+        if (cnt == 0) { t = TK_ILLEGAL }
+        return t, j - pos
+    }
+    // Keyword-start letter (CC_KYWD0: A-W, a-w).
+    if ((c0 >= 'A' && c0 <= 'W') || (c0 >= 'a' && c0 <= 'w')) {
+        int c1 = 0
+        if (pos + 1 >= 0 && pos + 1 < n) {
+            c1 = int(b[pos + 1])
+            if (c1 < 0) { c1 = c1 + 256 }
+        }
+        // class(c1) > CC_KYWD means c1 is not x/X, a keyword
+        // letter, or '_': a lone keyword-start letter.
+        bool c1kywd = c1 == 'x' || c1 == 'X' || (c1 >= 'A' && c1 <= 'W') || (c1 >= 'a' && c1 <= 'w') || (c1 >= 'Y' && c1 <= 'Z') || (c1 >= 'y' && c1 <= 'z') || c1 == '_'
+        if (!c1kywd) {
+            int j = pos + 1
+            while (j < n) {
+                int c = int(b[j])
+                if (c < 0) { c = c + 256 }
+                if (!(c >= 0x80 || (c >= '0' && c <= '9') || (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || c == '_' || c == '$')) { break }
+                j = j + 1
+            }
+            return TK_ID, j - pos
+        }
+        int j = pos + 2
+        while (j < n) {
+            int c = int(b[j])
+            if (c < 0) { c = c + 256 }
+            if (!(c == 'x' || c == 'X' || (c >= 'A' && c <= 'W') || (c >= 'a' && c <= 'w') || (c >= 'Y' && c <= 'Z') || (c >= 'y' && c <= 'z') || c == '_')) { break }
+            j = j + 1
+        }
+        int cj = 0
+        if (j >= 0 && j < n) {
+            cj = int(b[j])
+            if (cj < 0) { cj = cj + 256 }
+        }
+        if (cj >= 0x80 || (cj >= '0' && cj <= '9') || (cj >= 'A' && cj <= 'Z') || (cj >= 'a' && cj <= 'z') || cj == '_' || cj == '$') {
+            int k = pos + 1
+            while (k < n) {
+                int c = int(b[k])
+                if (c < 0) { c = c + 256 }
+                if (!(c >= 0x80 || (c >= '0' && c <= '9') || (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || c == '_' || c == '$')) { break }
+                k = k + 1
+            }
+            return TK_ID, k - pos
+        }
+        // Pure-ASCII run: char length == byte length.
+        int ci = tk_char_index(b, pos)
+        string word = sql.substr(ci, ci + (j - pos))
+        return tk_keyword_in(kw, word), j - pos
+    }
+    // X (CC_X): x'...' blob, else an identifier.
+    if (c0 == 'x' || c0 == 'X') {
+        int c1 = 0
+        if (pos + 1 >= 0 && pos + 1 < n) {
+            c1 = int(b[pos + 1])
+            if (c1 < 0) { c1 = c1 + 256 }
+        }
+        if (c1 == CP_SQUOTE) {
+            int j = pos + 2
+            while (j < n) {
+                int c = int(b[j])
+                if (c < 0) { c = c + 256 }
+                if (!((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F'))) { break }
+                j = j + 1
+            }
+            bool bad = false
+            int cj = 0
+            if (j >= 0 && j < n) {
+                cj = int(b[j])
+                if (cj < 0) { cj = cj + 256 }
+            }
+            if (cj != CP_SQUOTE || (j - pos) % 2 == 1) {
+                bad = true
+            }
+            if (bad) {
+                while (j < n) {
+                    int c = int(b[j])
+                    if (c < 0) { c = c + 256 }
+                    if (c == CP_SQUOTE) { break }
+                    j = j + 1
+                }
+            }
+            if (j < n) { j = j + 1 }
+            if (bad) { return TK_ILLEGAL, j - pos }
+            return TK_BLOB, j - pos
+        }
+        int j = pos + 1
+        while (j < n) {
+            int c = int(b[j])
+            if (c < 0) { c = c + 256 }
+            if (!(c >= 0x80 || (c >= '0' && c <= '9') || (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || c == '_' || c == '$')) { break }
+            j = j + 1
+        }
+        return TK_ID, j - pos
+    }
+    // Keyword-continue / high-byte identifier (CC_KYWD, CC_ID).
+    if ((c0 >= 'Y' && c0 <= 'Z') || (c0 >= 'y' && c0 <= 'z') || c0 == '_' || c0 >= 0x80) {
+        int j = pos + 1
+        while (j < n) {
+            int c = int(b[j])
+            if (c < 0) { c = c + 256 }
+            if (!(c >= 0x80 || (c >= '0' && c <= '9') || (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || c == '_' || c == '$')) { break }
+            j = j + 1
+        }
+        return TK_ID, j - pos
+    }
+    // CC_ILLEGAL (including VT as a first byte) and anything
+    // unhandled: one byte, TK_ILLEGAL.
+    return TK_ILLEGAL, 1
+}
+
+// Stateless fast entry, mirroring get_token.
+(int, int) fast_get_token(string sql, int byte_pos) {
+    if (byte_pos < 0) { return TK_ILLEGAL, 0 }
+    byte[] b = sql.byte_array()
+    if (byte_pos >= b.length()) { return TK_ILLEGAL, 0 }
+    return fast_scan(b, byte_pos, sql, tk_kw_map())
+}
+
+// Cursor fast entry, mirroring next() on the shared cursor state.
+bool fast_next() {
+    if (tz_pos >= tz_bytes.length()) {
+        tz_start = tz_pos
+        tz_typ = TK_ILLEGAL
+        tz_len = 0
+        return false
+    }
+    (t, n) = fast_scan(tz_bytes, tz_pos, tz_sql, kw_table)
+    tz_start = tz_pos
+    tz_typ = t
+    tz_len = n
+    if (n == 0) {
+        return false
+    }
+    tz_pos = tz_pos + n
+    return true
+}
