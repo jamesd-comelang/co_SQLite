@@ -12,7 +12,10 @@ reviewed with the language's author and fixed upstream, one story
 each; the port was then finished against the new compiler
 (come-lang HEAD `88eb3ca`). Each entry now carries a *Status:*
 line. Three new gaps found during that finishing pass are #15–#17.
-Still open: #3, #15, #16, #17.
+
+**Update (2026-10-23, the COIL-150…153 fix pass):** the four
+remaining gaps are fixed upstream (come-lang HEAD `30afbd7`).
+Nothing on this list is still open.
 
 ## #1 — Cross-module constants are unreadable (spec §3.4)
 
@@ -68,8 +71,12 @@ working directory there).
 *Workaround:* `run_tests.sh` runs each suite with `come run` from
 the repo root and treats the exit code as pass/fail.
 
-*Status:* still open (re-verified 2026-10-23 against `88eb3ca`:
-`come test .` fails identically). The workaround stands.
+*Status:* fixed as **COIL-150** — `come test` passes the tested
+root to its child builds (COME_PROJECT_ROOT), so the `src/`
+lookup anchors on the project while caches stay in the scratch
+directory. `come test .` runs this repo's suites directly; the
+`run_tests.sh` workaround is no longer needed for module
+resolution.
 
 ## #4 — No constant tables; a `map` literal is rebuilt per call
 
@@ -263,6 +270,15 @@ a table passed as a parameter or returned from a builder is
 exactly the shape that breaks — so `keyword_code()` keeps its
 per-call local map (a local map in no signature is fine).
 
+*Status:* fixed as **COIL-151** — every signature renderer
+(definitions, the forward-prototype pre-pass, importer
+prototypes, instance wrappers, function-type parameters) goes
+through the one type translator, so `map{...}` reaches C as
+`come_map_t` everywhere. (In the fix repro the raw paste hit
+stateless modules too, not only stateful ones; both are
+covered.) The tokenizer can now share one build-once keyword
+table between its functions.
+
 ## #16 — The export surface silently caps at 64 symbols
 
 A module may export at most 64 symbols. Beyond that, the excess
@@ -274,6 +290,13 @@ generated C. No diagnostic names the cap.
 plus one function works for N = 63 (64 symbols total) and fails
 for N = 64 (65 total), the last constant missing from the
 importer. The cap counts all exported symbols together.
+
+*Status:* fixed as **COIL-152** — the cap is 1024 exported
+names per module, and nothing truncates silently: an export
+list past the limit, or a module total past it across a
+directory module's files, is refused with the limit named.
+The 186 TK_* constants can now be exported alongside the 12
+functions.
 
 *Consequence for this port:* the 186 TK_* constants cannot be
 exported (the module already exports 12 functions). Callers
@@ -293,6 +316,12 @@ tuple-destructure call path skips the conversion.
 
 *Workaround:* bind literals to a variable first
 (`string stmt = "SELECT 1"`), as test 01 does.
+
+*Status:* fixed as **COIL-153** — cross-module calls (plain
+and destructured alike; they share one emission path) ask the
+module registry for the callee's declared parameter types and
+materialize a string literal exactly when that parameter is a
+string. The workaround bind is no longer needed.
 
 ---
 
