@@ -4,3 +4,5 @@ tools/sqlite3.c
 tools/difftest
 tools/corpus.h
 tools/__pycache__/
+tools/fuzzdiff
+tools/fuzz_corpus.h

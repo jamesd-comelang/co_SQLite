@@ -16,7 +16,10 @@
 
 long long sqlite3GetToken(const unsigned char *z, int *tokenType);
 
-#include "corpus.h"
+#ifndef CORPUS_H
+#define CORPUS_H "corpus.h"
+#endif
+#include CORPUS_H
 
 int main(void){
   int i, t;

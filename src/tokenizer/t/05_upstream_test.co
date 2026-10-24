@@ -1,0 +1,78 @@
+module upstream_test
+import std
+import string
+import tokenizer
+
+// Suite 5: SQLite's own tokenizer unit tests -- test/tokenize.test
+// from the SQLite tree (all 14 cases) -- translated to the
+// tokenizer level. The original checks SQL-level outcomes via
+// catchsql: the "unrecognized token" cases (1.1-1.12) are the
+// parser rejecting the TK_ILLEGAL token the number scanner
+// produces, so here the full token stream is asserted, with the
+// TK_ILLEGAL token's text and length exactly the string the
+// original error message quotes. Cases 2.1/2.2 are the block
+// comment at end of input. Expected streams were produced by
+// the C sqlite3GetToken itself (tools/difftest.c), not derived
+// by hand.
+
+int failures = 0
+
+// Expectations are one string of "NAME:START:LEN" triples separated
+// by spaces ("" means: no tokens) -- a compact notation for a
+// token stream.
+void expect(string sql, string spec) {
+    var tz = tokenizer.create()
+    tz.open(sql)
+    string parts[] = spec.split(" ")
+    int want = parts.length()
+    if (spec.length() == 0) { want = 0 }
+    int i = 0
+    while (tz.next()) {
+        if (i >= want) {
+            std.out.printf("FAIL '%s': extra token %s @%d +%d\n", sql, tokenizer.token_name(tz.typ()), tz.start(), tz.len())
+            failures = failures + 1
+            break
+        }
+        string f[] = parts[i].split(":")
+        string tn = tokenizer.token_name(tz.typ())
+        if (tn.cmp(f[0]) != 0 || tz.start() != int(f[1].tol()) || tz.len() != int(f[2].tol())) {
+            std.out.printf("FAIL '%s' tok %d: got %s @%d +%d, want %s\n", sql, i, tn, tz.start(), tz.len(), parts[i])
+            failures = failures + 1
+        }
+        i = i + 1
+    }
+    if (i != want) {
+        std.out.printf("FAIL '%s': got %d tokens, want %d\n", sql, i, want)
+        failures = failures + 1
+    }
+    tz.destroy()
+}
+
+int main() {
+    // tokenize-1.1 .. 1.12: malformed exponents and suffixes.
+    // Each bad number is one TK_ILLEGAL of length 4 ("1.0e" and
+    // friends, exactly as the original error messages quote).
+    expect("SELECT 1.0e+", "TK_SELECT:0:6 TK_SPACE:6:1 TK_ILLEGAL:7:4 TK_PLUS:11:1")
+    expect("SELECT 1.0E+", "TK_SELECT:0:6 TK_SPACE:6:1 TK_ILLEGAL:7:4 TK_PLUS:11:1")
+    expect("SELECT 1.0e-", "TK_SELECT:0:6 TK_SPACE:6:1 TK_ILLEGAL:7:4 TK_MINUS:11:1")
+    expect("SELECT 1.0E-", "TK_SELECT:0:6 TK_SPACE:6:1 TK_ILLEGAL:7:4 TK_MINUS:11:1")
+    expect("SELECT 1.0e+/", "TK_SELECT:0:6 TK_SPACE:6:1 TK_ILLEGAL:7:4 TK_PLUS:11:1 TK_SLASH:12:1")
+    expect("SELECT 1.0E+:", "TK_SELECT:0:6 TK_SPACE:6:1 TK_ILLEGAL:7:4 TK_PLUS:11:1 TK_ILLEGAL:12:1")
+    expect("SELECT 1.0e-:", "TK_SELECT:0:6 TK_SPACE:6:1 TK_ILLEGAL:7:4 TK_MINUS:11:1 TK_ILLEGAL:12:1")
+    expect("SELECT 1.0E-/", "TK_SELECT:0:6 TK_SPACE:6:1 TK_ILLEGAL:7:4 TK_MINUS:11:1 TK_SLASH:12:1")
+    expect("SELECT 1.0F+5", "TK_SELECT:0:6 TK_SPACE:6:1 TK_ILLEGAL:7:4 TK_PLUS:11:1 TK_INTEGER:12:1")
+    expect("SELECT 1.0d-10", "TK_SELECT:0:6 TK_SPACE:6:1 TK_ILLEGAL:7:4 TK_MINUS:11:1 TK_INTEGER:12:2")
+    expect("SELECT 1.0e,5", "TK_SELECT:0:6 TK_SPACE:6:1 TK_ILLEGAL:7:4 TK_COMMA:11:1 TK_INTEGER:12:1")
+    expect("SELECT 1.0E.10", "TK_SELECT:0:6 TK_SPACE:6:1 TK_ILLEGAL:7:4 TK_FLOAT:11:3")
+
+    // tokenize-2.1: "/*" as the last two bytes is NOT a comment --
+    // the C code needs a byte after the '*' -- so it tokenizes as
+    // slash, star (and the SQL layer reports a syntax error).
+    expect("SELECT 1, 2 /*", "TK_SELECT:0:6 TK_SPACE:6:1 TK_INTEGER:7:1 TK_COMMA:8:1 TK_SPACE:9:1 TK_INTEGER:10:1 TK_SPACE:11:1 TK_SLASH:12:1 TK_STAR:13:1")
+    // tokenize-2.2: with any byte after, the unterminated block
+    // comment runs to end of input and the statement is fine.
+    expect("SELECT 1, 2 /* ", "TK_SELECT:0:6 TK_SPACE:6:1 TK_INTEGER:7:1 TK_COMMA:8:1 TK_SPACE:9:1 TK_INTEGER:10:1 TK_SPACE:11:1 TK_COMMENT:12:3")
+
+    if (failures == 0) { std.out.printf("PASS: 05-upstream\n") }
+    return failures
+}

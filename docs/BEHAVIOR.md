@@ -1,10 +1,13 @@
 # Tokenizer behavior — supported, unsupported, divergent
 
 Reference: SQLite trunk `f879fb1`, `src/tokenize.c`
-(`sqlite3GetToken`). The differential test (`make diff`,
-`src/tokenizer/t/04_differential_test.co`, 123 corpus inputs) compares type, byte
+(`sqlite3GetToken`). The differential tests compare type, byte
 start and byte length against the C function itself, not against
-this document — where they disagree, the harness wins.
+this document — where they disagree, the harness wins. Three
+layers: the curated corpus (`make diff`, 123 inputs), SQLite's
+own `test/tokenize.test` cases at token level (suite 05), and a
+seeded fragment-fuzz corpus (`make fuzz`, 400 inputs, ~2,100
+token comparisons).
 
 ## Supported (verified against the C tokenizer)
 

@@ -1,6 +1,6 @@
 COME ?= come
 
-.PHONY: test demo diff
+.PHONY: test demo diff fuzz
 test:
 	./run_tests.sh
 
@@ -12,4 +12,11 @@ demo:
 # the full suite including the regenerated differential test.
 diff:
 	./tools/run_diff.sh
+	./run_tests.sh
+
+# Regenerate the seeded fuzz differential (fragment-composed
+# inputs, tools/gen_fuzz.py) from SQLite's sqlite3GetToken,
+# then run the full suite including the regenerated fuzz test.
+fuzz:
+	./tools/run_fuzz.sh
 	./run_tests.sh

@@ -21,6 +21,7 @@ Reference: SQLite trunk `f879fb1` (2026-10-21), `src/tokenize.c`
 | 4 | Literals: `'strings'`, `X'blobs'`, integers/floats/exponents/hex, digit separators (`TK_QNUMBER`) | ✅ |
 | 5 | Bind parameters (`?`, `?NNN`, `:n`, `@n`, `$n`, `$n(...)`, `#n`, `::`); `TK_ILLEGAL` paths; unterminated constructs | ✅ |
 | 6 | Test suites in Come (`t/`), differential harness vs C `sqlite3GetToken`; regression tests for every divergence found | ✅ |
+| 6b | Coverage parity with the pure C original: SQLite's own `test/tokenize.test` (14 cases) ported at token level (suite 05); seeded fragment-fuzz differential vs C (suite 06, 400 inputs) as the breadth the TCL suite gives the C tokenizer | ✅ |
 | 7 | Docs: behavior matrix, Come gaps, provenance; assessment of Come readiness | ✅ |
 
 ### Dependency mapping (SQLite → Come), from tasklet 0
