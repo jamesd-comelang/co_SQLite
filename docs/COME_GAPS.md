@@ -85,9 +85,18 @@ scalar returns and a cursor object. The originally planned API —
 a `get_token(sql, pos) -> (type, len)` mirroring the C function —
 had to be abandoned for this reason (see #9 as well).
 
-## #8 — A struct literal containing a function call does not parse
+## #8 — WITHDRAWN (did not reproduce)
 
-`struct Token{T, pos, tk_byte_len(...)}` is rejected by the parser.
+Originally filed as "a struct literal containing a function call
+does not parse". Re-verified 2026-10-23 with a probe matrix —
+plain calls, calls with arguments, designated initializers,
+literals in return statements and as arguments, and cross-module
+namespaced calls — and every form compiles and runs at Come HEAD
+`9d72c27`. The port-time failure was almost certainly a
+misattributed symptom of the parser capacity limit (#10), whose
+spurious errors pointed at innocent lines in the oversized file.
+Kept in the list, marked withdrawn, so the numbering other
+documents cite stays stable.
 
 ## #9 — Struct values returned across a module boundary degrade
 
