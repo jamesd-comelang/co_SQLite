@@ -422,10 +422,17 @@ const (
             // byte >= 0x80: an identifier.
             return TK_ID, tk_id_len(b, pos)
         }
-        // The run is pure ASCII, so char length == byte length.
-        int ci = tk_char_index(b, pos)
-        string word = sql.substr(ci, ci + (j - pos))
-        return tk_keyword_in(kw, word), j - pos
+        // Byte-range lookup (Design 3): no char-index walk,
+        // no substr, no lower — the map lookup lowercases
+        // the range itself. sql is now unused in tk_scan
+        // (kept in the signature so callers don't change).
+        ERR.clear()
+        int v = kw.lookup_lower(b, pos, j - pos)
+        if (ERR.set()) {
+            ERR.clear()
+            return TK_ID, j - pos
+        }
+        return v, j - pos
     }
     if (cls == CC_X) {
         if (tk_byte(b, pos + 1) == CP_SQUOTE) {
