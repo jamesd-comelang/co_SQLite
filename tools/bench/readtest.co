@@ -1,0 +1,17 @@
+module readtest
+import std
+import string
+int main() {
+    FILE f
+    if (!f.open("tiny.sql", "r")) { return 1 }
+    string lines[]
+    int guard = 0
+    while (!f.eof() && guard < 10) {
+        string line = f.gets()
+        std.out.printf("got len=%d eof=%d\n", line.length(), f.eof())
+        lines.append(line)
+        guard = guard + 1
+    }
+    std.out.printf("lines=%d\n", lines.length())
+    return 0
+}

@@ -6,3 +6,14 @@ tools/corpus.h
 tools/__pycache__/
 tools/fuzzdiff
 tools/fuzz_corpus.h
+tools/bench/bench_c
+tools/bench/bench_come
+tools/bench/bench_come_o2
+tools/bench/bench2
+tools/bench/micro1
+tools/bench/micro2
+tools/bench/micro3
+tools/bench/micro4
+tools/bench/readtest
+tools/bench/workload.sql
+tools/bench/tiny.sql

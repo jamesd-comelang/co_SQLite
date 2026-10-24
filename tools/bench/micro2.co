@@ -1,0 +1,12 @@
+module micro2
+import std
+import tokenizer
+int main() {
+    long s = 0
+    for (int i = 0; i < 200000; i++) {
+        (t, n) = tokenizer.get_token("1 + 2", 0)
+        s = s + t + n
+    }
+    std.out.printf("sum=%d\n", s)
+    return 0
+}

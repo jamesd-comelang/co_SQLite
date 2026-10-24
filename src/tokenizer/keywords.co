@@ -5,14 +5,34 @@ import string
 // keywords.co -- sqlite3KeywordCode() for module tokenizer.
 //
 // SQLite uses a generated perfect hash (keywordhash.h); the Come
-// port uses a map{string,int}, built per call: correct, not fast.
-// A build-once module table is the documented pattern (COIL-142),
-// but sharing it needs the map in a function signature, and in a
-// stateful module that breaks the generated C -- the map type is
-// pasted untranslated into prototypes (docs/COME_GAPS.md #15).
-// TK_ID is tokenizer.co's constant, shared module-wide (COIL-148).
+// port uses a map{string,int}. The table is built by tk_kw_map().
+// The cursor builds it once per instance (in the module's
+// create() hook) and passes it to the scanner; the stateless
+// keyword_code() builds one per call (a map in a function
+// signature is fine since COIL-151, but a stateless function
+// cannot touch instance state). TK_ID is tokenizer.co's
+// constant, shared module-wide (COIL-148).
 
+// Shared lookup: the TK_* code for word in table m, or TK_ID.
+int tk_keyword_in(map{string, int} m, string word) {
+    string lw = word.lower()
+    ERR.clear()
+    int v = m[lw]
+    if (ERR.set()) {
+        ERR.clear()
+        return TK_ID
+    }
+    return v
+}
+
+// keyword_code -- sqlite3KeywordCode(): the TK_* code for a word,
+// case-insensitively, or TK_ID when the word is not a keyword.
 int keyword_code(string word) {
+    return tk_keyword_in(tk_kw_map(), word)
+}
+
+// Build the keyword table (SQLite's keywordhash.h contents).
+map{string, int} tk_kw_map() {
     map{string, int} m
 
 // BEGIN GENERATED: keyword-map
@@ -164,12 +184,5 @@ int keyword_code(string word) {
     m["with"] = 82
     m["without"] = 26
 // END GENERATED: keyword-map
-    string lw = word.lower()
-    ERR.clear()
-    int v = m[lw]
-    if (ERR.set()) {
-        ERR.clear()
-        return TK_ID
-    }
-    return v
+    return m
 }

@@ -1,0 +1,14 @@
+module micro3
+import std
+import tokenizer
+int main() {
+    var tz = tokenizer.create()
+    long s = 0
+    for (int i = 0; i < 200000; i++) {
+        tz.open("abc def")
+        while (tz.next()) { s = s + tz.typ() }
+    }
+    tz.destroy()
+    std.out.printf("sum=%d\n", s)
+    return 0
+}

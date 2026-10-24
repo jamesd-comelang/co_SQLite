@@ -1,0 +1,15 @@
+module micro4
+import std
+import string
+int main() {
+    long s = 0
+    for (int i = 0; i < 200000; i++) {
+        map{string, int} m
+        m["alpha"] = 1
+        m["beta"] = 2
+        m["gamma"] = 3
+        s = s + m["beta"]
+    }
+    std.out.printf("sum=%d\n", s)
+    return 0
+}

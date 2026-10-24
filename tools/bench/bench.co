@@ -1,0 +1,49 @@
+module bench
+import std
+import string
+import tokenizer
+
+// Come benchmark: the tokenizer cursor over workload.sql, line
+// by line. Same work as bench.c: read all lines once, then 20
+// passes of full tokenization, accumulating a checksum (token
+// count, type sum, length sum) so the loop cannot be optimized
+// away. The checksum must match the C bench exactly.
+
+int main() {
+    FILE f
+    if (!f.open("workload.sql", "r")) {
+        std.out.printf("cannot open workload.sql\n")
+        return 1
+    }
+    string lines[]
+    while (!f.eof()) {
+        string line = f.gets()
+        if (line.length() == 0 && f.eof()) { break }
+        // gets() keeps the trailing newline; the C bench strips
+        // it, and the checksums must match exactly.
+        if (line.length() > 0 && line[line.length() - 1] == '\n') {
+            line = line.substr(0, line.length() - 1)
+        }
+        lines.append(line)
+    }
+    f.close()
+    int nlines = lines.length()
+
+    var tz = tokenizer.create()
+    long count = 0
+    long tsum = 0
+    long lsum = 0
+    for (int pass = 0; pass < 20; pass++) {
+        for (int i = 0; i < nlines; i++) {
+            tz.open(lines[i])
+            while (tz.next()) {
+                count = count + 1
+                tsum = tsum + tz.typ()
+                lsum = lsum + tz.len()
+            }
+        }
+    }
+    tz.destroy()
+    std.out.printf("Come: %d tokens, typesum=%d lensum=%d (20 passes, %d lines)\n", count, tsum, lsum, nlines)
+    return 0
+}

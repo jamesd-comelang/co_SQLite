@@ -323,6 +323,33 @@ module registry for the callee's declared parameter types and
 materialize a string literal exactly when that parameter is a
 string. The workaround bind is no longer needed.
 
+## #18 — Maps built in a loop are never reclaimed
+
+Found by the tokenizer benchmark (tools/bench), not by the
+port itself. A map constructed inside a loop leaks its whole
+allocation on every iteration; nothing is freed at the end of
+the iteration or at function return.
+
+*Measured 2026-10-23 (come-lang HEAD `a81eb70`):*
+- A 3-entry map built 200,000 times in a loop: peak RSS
+  229 MB, ~1.1 KB leaked per iteration.
+- `keyword_code("select")` 200,000 times (a 147-entry map per
+  call): OOM-killed at ~6.1 GB, ~30 KB leaked per call.
+- A loop with no maps at all (200,000 `get_token("1 + 2")`
+  calls): peak RSS 29 MB, flat.
+
+*Consequence:* any sustained tokenization through the
+stateless path (`get_token`, `keyword_code`) grows without
+bound — the original benchmark (20 passes over 4000 lines)
+was OOM-killed at ~28 s before the cursor's build-once table
+landed. The cursor path is now stable (one table per cursor),
+but the leak itself is in the runtime's map lifetime, and any
+other code that builds maps in a loop will hit it.
+
+*Workaround:* build the table once and pass it (the
+tokenizer's cursor does this since the COIL-151 fix); never
+build a map per item in a hot loop.
+
 ---
 
 ## Readiness assessment

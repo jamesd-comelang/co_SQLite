@@ -283,12 +283,13 @@ const (
 // ----------------------------------------------------------------
 // The scanner core: sqlite3GetToken() over bytes.
 //
-// tk_scan(b, pos, sql) returns (token_type, byte_length) for
-// the token starting at byte offset pos of b (sql is the string
-// b came from, used only to cut out keyword candidates).
-// Past-the-end bytes read as 0, like C's NUL.
+// tk_scan(b, pos, sql, kw) returns (token_type, byte_length)
+// for the token starting at byte offset pos of b (sql is the
+// string b came from, used only to cut out keyword candidates;
+// kw is the keyword table). Past-the-end bytes read as 0, like
+// C's NUL.
 
-(int, int) tk_scan(byte[] b, int pos, string sql) {
+(int, int) tk_scan(byte[] b, int pos, string sql, map{string, int} kw) {
     int c0 = tk_byte(b, pos)
     int cls = tk_class(c0)
 
@@ -424,7 +425,7 @@ const (
         // The run is pure ASCII, so char length == byte length.
         int ci = tk_char_index(b, pos)
         string word = sql.substr(ci, ci + (j - pos))
-        return keyword_code(word), j - pos
+        return tk_keyword_in(kw, word), j - pos
     }
     if (cls == CC_X) {
         if (tk_byte(b, pos + 1) == CP_SQUOTE) {
@@ -568,7 +569,7 @@ int tk_id_len(byte[] b, int pos) {
     if (byte_pos < 0) { return TK_ILLEGAL, 0 }
     byte[] b = sql.byte_array()
     if (byte_pos >= b.length()) { return TK_ILLEGAL, 0 }
-    return tk_scan(b, byte_pos, sql)
+    return tk_scan(b, byte_pos, sql, tk_kw_map())
 }
 
 // token_type_at: the type of the token starting at byte_pos.
@@ -618,11 +619,12 @@ string token_text(string sql, int byte_start, int byte_len) {
 
 // The lifecycle pair (Come COIL-156): a module is
 // instantiable only when it defines both hooks. The
-// cursor state below is per-instance, so the pair is
-// declared here; both hooks are empty - the fields
-// carry their own initializers, and the cursor's
-// memory dies with the instance's root.
+// cursor state below is per-instance. create() builds the
+// keyword table once per cursor (COIL-151 made map-typed
+// signatures work, so the scanner takes the table as a
+// parameter instead of rebuilding it per identifier).
 void create() {
+    kw_table = tk_kw_map()
 }
 
 void destroy() {
@@ -630,6 +632,7 @@ void destroy() {
 
 string tz_sql = ""
 byte[] tz_bytes
+map{string, int} kw_table
 int tz_pos = 0
 int tz_start = 0
 int tz_typ = 0
@@ -651,7 +654,7 @@ bool next() {
         tz_len = 0
         return false
     }
-    (t, n) = tk_scan(tz_bytes, tz_pos, tz_sql)
+    (t, n) = tk_scan(tz_bytes, tz_pos, tz_sql, kw_table)
     tz_start = tz_pos
     tz_typ = t
     tz_len = n
