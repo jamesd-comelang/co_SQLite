@@ -616,6 +616,18 @@ string token_text(string sql, int byte_start, int byte_len) {
 // initializer below), where the one-shot get_token pays both
 // costs per call.
 
+// The lifecycle pair (Come COIL-156): a module is
+// instantiable only when it defines both hooks. The
+// cursor state below is per-instance, so the pair is
+// declared here; both hooks are empty - the fields
+// carry their own initializers, and the cursor's
+// memory dies with the instance's root.
+void create() {
+}
+
+void destroy() {
+}
+
 string tz_sql = ""
 byte[] tz_bytes
 int tz_pos = 0
