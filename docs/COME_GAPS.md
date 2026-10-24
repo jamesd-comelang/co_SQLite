@@ -161,6 +161,12 @@ as function parameters work correctly (COIL-140).
 *Workaround:* create instances inside functions; pass them as
 parameters (the differential test does exactly this).
 
+*Ruling (2026-10-23, gap review):* instance creation belongs
+inside functions only. The fix is a fence, not a feature: the
+compiler should reject `create()` at module scope with a
+Come-level error, instead of accepting the declaration and
+failing in generated C.
+
 ---
 
 ## Readiness assessment
