@@ -5,7 +5,7 @@
 # 2. Build the C reference harness (needs tools/sqlite3.c, the
 #    SQLite amalgamation -- see tools/README.md).
 # 3. Record its token streams in tools/expected.txt.
-# 4. Regenerate t/04_differential_test.co with those expectations.
+# 4. Regenerate src/tokenizer/t/04_differential_test.co with those expectations.
 # The generated test then runs as part of `make test`.
 set -e
 cd "$(dirname "$0")/.."

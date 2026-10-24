@@ -32,12 +32,18 @@ embedded NUL are unrepresentable in Come strings, so SQLite's
 byte-level behavior for those inputs cannot be ported
 (`docs/BEHAVIOR.md`).
 
-## #3 — `come test` cannot resolve project modules from `t/`
+## #3 — `come test` cannot resolve a user project's own modules
 
-`come test` builds each test in isolation; a test in `t/` that
-imports a project module from `src/` does not resolve, while
-`come run t/x.co` from the repo root does (the `src/` lookup rule
-applies there).
+`come test` discovers `.co` files under any `t/` directory but
+builds each one from a fresh scratch working directory, and the
+driver's `src/` module lookup anchors on that working directory —
+so a test importing a project module never resolves, whether the
+test sits in a top-level `t/` or in the module's own
+`src/<module>/t/` (verified both ways, 2026-10-23). It works
+inside Come's own repo only because those tests import system
+modules from the depot. `come run src/tokenizer/t/x.co` from the
+repo root resolves fine (the `src/` lookup anchors on the real
+working directory there).
 
 *Workaround:* `run_tests.sh` runs each suite with `come run` from
 the repo root and treats the exit code as pass/fail.

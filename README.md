@@ -80,7 +80,7 @@ survive module boundaries (COME_GAPS #7, #9).
 Needs the Come toolchain (`come` on PATH, or set `COME=/path/to/come`).
 
 ```sh
-make test        # .co test suites in t/ (exit code = pass/fail)
+make test        # .co test suites in src/tokenizer/t/ (exit code = pass/fail)
 make demo        # tokenize a sample statement and print the tokens
 make diff        # differential test vs the real sqlite3GetToken (C)
 ```
@@ -96,7 +96,7 @@ src/tokenizer/       the tokenizer (only deliverable of step 1):
                      tokenizer.co (scanner + API), chars.co (char
                      classes), keywords.co (keyword table),
                      names.co (token names)
-t/                   .co test suites (run via run_tests.sh, see COME_GAPS #3)
+src/tokenizer/t/     .co test suites (run via run_tests.sh, see COME_GAPS #3)
 examples/demo.co     small driver that prints a token stream
 docs/                PROJECT.md (tasklets), TOKEN_MAP.md, BEHAVIOR.md,
                      COME_GAPS.md, PROVENANCE.md

@@ -45,7 +45,7 @@ Reference: SQLite trunk `f879fb1` (2026-10-21), `src/tokenize.c`
 2. Cross-module constants are unreadable (§3.4) → API works around it
    with `token_name()`; numeric values published in TOKEN_MAP.md.
 3. `come test` builds each test in isolation and cannot resolve a
-   project module from `t/` → tests run through `run_tests.sh`
+   project module from `src/tokenizer/t/` → tests run through `run_tests.sh`
    (`come run` from the repo root, where the `src/` rule applies).
 
 None of these blocked the port; all three are logged with repros in

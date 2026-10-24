@@ -2,7 +2,7 @@
 """The differential corpus: one list of SQL inputs, three consumers.
 
   python3 tools/corpus.py header   -> writes tools/corpus.h (C)
-  python3 tools/corpus.py come     -> writes t/04_differential_test.co
+  python3 tools/corpus.py come     -> writes src/tokenizer/t/04_differential_test.co
                                       (needs tools/expected.txt, the
                                       output of the C harness; run
                                       tools/run_diff.sh to do it all)
@@ -190,7 +190,7 @@ def write_come():
     out.append('    if (failures == 0) { std.out.printf("PASS: 04-differential (%d cases)\\n", ' + str(len(CASES)) + ") }")
     out.append("    return failures")
     out.append("}")
-    path = os.path.join(ROOT, "t", "04_differential_test.co")
+    path = os.path.join(ROOT, "src", "tokenizer", "t", "04_differential_test.co")
     open(path, "w").write("\n".join(out) + "\n")
     print("wrote", path)
 

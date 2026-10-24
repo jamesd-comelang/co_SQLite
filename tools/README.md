@@ -31,7 +31,7 @@ corpus (123 SQL inputs). `run_diff.sh`:
    bytes followed by hex characters),
 2. builds `tools/difftest.c` against the SQLite amalgamation,
 3. records SQLite's own token streams in `tools/expected.txt`,
-4. regenerates `t/04_differential_test.co` with those expectations
+4. regenerates `src/tokenizer/t/04_differential_test.co` with those expectations
    (numeric type/start/length triples, one short line per token —
    Come's lexer has a line-length limit, see COME_GAPS #12).
 

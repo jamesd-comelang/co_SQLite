@@ -2,7 +2,7 @@
 
 Reference: SQLite trunk `f879fb1`, `src/tokenize.c`
 (`sqlite3GetToken`). The differential test (`make diff`,
-`t/04_differential_test.co`, 123 corpus inputs) compares type, byte
+`src/tokenizer/t/04_differential_test.co`, 123 corpus inputs) compares type, byte
 start and byte length against the C function itself, not against
 this document — where they disagree, the harness wins.
 
