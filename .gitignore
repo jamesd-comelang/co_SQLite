@@ -17,3 +17,10 @@ tools/bench/micro4
 tools/bench/readtest
 tools/bench/workload.sql
 tools/bench/tiny.sql
+tools/bench/bench_new
+tools/bench/bench_new2
+tools/bench/bench_asan
+tools/bench/micro1_new
+tools/bench/micro2_new
+tools/bench/micro4_new
+tools/bench/build/

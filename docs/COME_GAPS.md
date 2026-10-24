@@ -323,7 +323,7 @@ module registry for the callee's declared parameter types and
 materialize a string literal exactly when that parameter is a
 string. The workaround bind is no longer needed.
 
-## #18 — Maps built in a loop are never reclaimed
+## #18 — Maps built in a loop are never reclaimed [CLOSED — fixed by Come COIL-157]
 
 Found by the tokenizer benchmark (tools/bench), not by the
 port itself. A map constructed inside a loop leaks its whole
@@ -349,6 +349,41 @@ other code that builds maps in a loop will hit it.
 *Workaround:* build the table once and pass it (the
 tokenizer's cursor does this since the COIL-151 fix); never
 build a map per item in a hot loop.
+
+*Fixed 2026-10-24 as Come [COIL-157] (commit 82fa98a,
+pushed to main).* Root cause: the runtime had a single
+per-module context freed only at program end — scopes were
+never built, even though spec §7 says scopes are the owner
+roots. The fix implements the spec's own model: a runtime
+scope stack (marker frame per function body, plain frames
+per block and per loop iteration, per-coroutine stacks),
+and values escape a scope only by adoption — on return,
+assignment, map put, and array append/insert/set.
+
+*Verified in this repo with the fixed compiler (come-lang
+82fa98a, rebuilt from clean):*
+- micro1 (keyword_code x200,000, was OOM-killed ~6.1 GB):
+  now peak ~4.2 MB, sum correct.
+- micro4 (3-entry map x200,000, was 229 MB): now peak
+  ~3.9 MB, sum correct.
+- micro2 (get_token x200,000 — at HEAD this builds the
+  147-entry keyword map on every call, so it was never the
+  clean control it looked like pre-table-change): now peak
+  ~4.3 MB, sum correct.
+- Full bench (20 passes, 4,000 lines): completes,
+  checksums match C exactly (2,530,480 tokens,
+  typesum=285119860, lensum=7962360). Time ~85 s — the
+  structural speed gap is unchanged and is a separate item.
+- All 6 tokenizer suites green with the fixed compiler.
+
+No co_SQLite changes were needed for this fix — the cursor
+build-once table and the stateless path both work as-is.
+The table is still worth keeping (one build beats 147-entry
+rebuilds per identifier on speed alone), but it is no
+longer load-bearing for memory safety. A related guard fix
+landed with COIL-157: whole-map field assignment in
+create() must adopt (the bench segfaulted without it;
+pinned by come-lang tests/map_scope_project/kwtab.co).
 
 ---
 
