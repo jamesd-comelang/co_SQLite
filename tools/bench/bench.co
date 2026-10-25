@@ -36,10 +36,12 @@ int main() {
     for (int pass = 0; pass < 20; pass++) {
         for (int i = 0; i < nlines; i++) {
             tz.open(lines[i])
-            while (tz.next()) {
+            int p = tz.next_token_packed()
+            while ((p & 16777215) != 0) {
                 count = count + 1
-                tsum = tsum + tz.typ()
-                lsum = lsum + tz.len()
+                tsum = tsum + ((p >> 24) & 255)
+                lsum = lsum + (p & 16777215)
+                p = tz.next_token_packed()
             }
         }
     }

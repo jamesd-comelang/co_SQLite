@@ -680,6 +680,32 @@ int start() {
     return tz_start
 }
 
+// next_token_packed(): trial measurement vehicle for the
+// proposed combined next()+typ()+len() method (perf2
+// follow-up, review #3 rank 1). A thin wrapper over next(),
+// so it cannot diverge from the sequence: it advances
+// exactly like next() (and sets tz_start/tz_typ/tz_len, so
+// typ()/len()/start() still work after it) and returns one
+// packed int: type in bits 24-31, len in bits 0-23
+// (decode: type = (p >> 24) & 255, len = p & 16777215).
+// Packed, not a tuple, because methods returning tuples
+// do not compile in this compiler: the _ret_t typedef is
+// emitted for plain functions (get_token, tk_scan) but
+// never for methods (unknown type
+// come_tokenizer__next_token_ret_t). That is a compiler
+// gap needing its own story, not part of this trial.
+// Bench-valid: workload lines are < 1000 chars, so
+// len < 2^24; the shipped API would be the (int, int)
+// tuple once the gap is fixed, with no encode/decode
+// cost, so this trial UNDERESTIMATES the tuple win by
+// the ~2ns/token encode+decode. End of input packs
+// (TK_ILLEGAL, 0), so decoded len 0 is the end signal
+// (no real token has length 0).
+int next_token_packed() {
+    next()
+    return (tz_typ << 24) | (tz_len & 16777215)
+}
+
 int len() {
     return tz_len
 }

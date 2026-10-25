@@ -570,3 +570,11 @@ bool fast_next() {
     tz_pos = tz_pos + n
     return true
 }
+
+// fast_next_token_packed(): the fast counterpart of
+// next_token_packed() (same packed contract, over
+// fast_next() instead of next()).
+int fast_next_token_packed() {
+    fast_next()
+    return (tz_typ << 24) | (tz_len & 16777215)
+}

@@ -90,3 +90,68 @@ ownership-model change, not a perf2 step.
   path, which was D's motivation. Do not do D for perf.
 
 Compiler-side C (default -O2) is next, in come-lang.
+
+## Follow-up: combined cursor method (branch next-token, from perf2)
+
+Review #3 rank 1, tried on the user's "Sure" (2026-10-24).
+Proposal: one call returning (type, len) instead of three
+(next()/typ()/len()) per token.
+
+Compiler gap found first: methods returning tuples do NOT
+compile. The _ret_t typedef is emitted for plain functions
+(get_token, tk_scan, fast_scan) but never for methods, so
+any (int, int) method fails with "unknown type
+come_tokenizer__next_token_ret_t". Come has no 3-tuples
+either (only 2-tuples unpack). The clean tuple API is
+therefore blocked on a compiler story of its own; it is
+NOT fixed inside this trial.
+
+Trial vehicle (measurement only): packed-int methods
+next_token_packed() / fast_next_token_packed(), thin
+wrappers over next()/fast_next() (state still set, so
+typ()/len()/start() work after them). Packing: type in
+bits 24-31, len in bits 0-23 (bench-valid: workload lines
+< 1000 chars, so len < 2^24). End is packed
+(TK_ILLEGAL, 0), decoded len 0. New test 09 verifies
+packed == sequence in lockstep (type, len, start, end)
+for 22 inputs, slow and fast; 9/9 suites green.
+Benches switched to the packed methods (priming read +
+while ((p & 16777215) != 0)).
+
+Measured, INTERLEAVED old/new pairs (8 rounds each, same
+VM phase; checksums exact throughout). Unpaired batches
+overstated fast default by ~20 ms (phase drift), so the
+paired numbers below are the honest ones:
+
+| Build | Old (perf2) | Packed | Saving |
+|---|---|---|---|
+| Default faithful | ~327 | ~305 | ~22 ms |
+| Default fast | ~222 | ~187 | ~35 ms |
+| LTO faithful | ~221 | ~209 | ~15 ms |
+| LTO fast | ~158 | ~141 | ~17 ms |
+
+The LTO saving corrects review #3's audit: it is NOT
+just call overhead (typ/len were already inlined under
+LTO). The mechanism is the store-load round trip: the
+old sequence stores tz_typ/tz_len to memory in next()
+and loads them back in typ()/len(), and the compiler
+keeps the round trip (tz is a heap pointer, aliasing
+not provable). Packed returns both values in registers,
+so the round trip disappears in both default and LTO.
+That also explains why LTO saves ~15 ms for both
+scanners (round-trip cost is scanner-independent).
+
+Packed underestimates the clean tuple by the
+encode+decode cost (~2 ns/token, ~5 ms total), so the
+tuple estimate for LTO fast is ~136 ms (vs Go 131 ms,
+~5 ms, noise-level). Faithful (the primary scanner)
+remains ~70 ms behind Go even with the tuple, so
+parity is NOT achieved for the product; only the trial
+fast scanner approaches Go.
+
+Status: branch next-token, tag perf2-next-token, NOT
+merged. Two founder calls remain: (1) adopt the
+combined method as public API (packed now, or tuple
+after the compiler gap is fixed), and (2) the compiler
+gap itself (method tuple _ret_t emission) as its own
+story. Neither is decided by this trial.

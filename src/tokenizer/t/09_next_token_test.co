@@ -1,0 +1,103 @@
+module next_token_test
+import std
+import string
+import tokenizer
+
+// GENERATED (next-token trial) -- next_token_packed() vs
+// the next()+typ()+len() sequence, and
+// fast_next_token_packed() vs fast_next()+typ()+len(),
+// in lockstep: same (type, len, start) per token, same
+// end behavior. The packed methods are wrappers over
+// next()/fast_next(), so this guards against any wiring
+// slip (wrong state, wrong end signal, wrong packing)
+// rather than against a reimplementation.
+//
+// NOTE: packed, not tuple, because methods returning
+// tuples do not compile here (missing _ret_t typedef --
+// see tokenizer.co next_token_packed comment). The clean
+// (int, int) API is blocked on that compiler gap.
+
+int failures = 0
+int cases = 0
+
+void check(string sql) {
+    var a = tokenizer.create()
+    var b = tokenizer.create()
+    a.open(sql)
+    b.open(sql)
+    while (true) {
+        bool ok_a = a.next()
+        int p_b = b.next_token_packed()
+        int t_b = (p_b >> 24) & 255
+        int n_b = p_b & 16777215
+        cases = cases + 1
+        if (ok_a) {
+            if (n_b == 0 || t_b != a.typ() || n_b != a.len() || b.start() != a.start()) {
+                std.out.printf("MISMATCH slow in [%s]: seq=(%d,%d,%d) tok=(%d,%d,%d)\n", sql, a.typ(), a.len(), a.start(), t_b, n_b, b.start())
+                failures = failures + 1
+                break
+            }
+        } else {
+            if (n_b != 0 || t_b != a.typ() || b.start() != a.start()) {
+                std.out.printf("MISMATCH slow end in [%s]: seq=(%d,%d,%d) tok=(%d,%d,%d)\n", sql, a.typ(), a.len(), a.start(), t_b, n_b, b.start())
+                failures = failures + 1
+            }
+            break
+        }
+    }
+    a.destroy()
+    b.destroy()
+    var c = tokenizer.create()
+    var d = tokenizer.create()
+    c.open(sql)
+    d.open(sql)
+    while (true) {
+        bool ok_c = c.fast_next()
+        int p_d = d.fast_next_token_packed()
+        int t_d = (p_d >> 24) & 255
+        int n_d = p_d & 16777215
+        cases = cases + 1
+        if (ok_c) {
+            if (n_d == 0 || t_d != c.typ() || n_d != c.len() || d.start() != c.start()) {
+                std.out.printf("MISMATCH fast in [%s]: seq=(%d,%d,%d) tok=(%d,%d,%d)\n", sql, c.typ(), c.len(), c.start(), t_d, n_d, d.start())
+                failures = failures + 1
+                break
+            }
+        } else {
+            if (n_d != 0 || t_d != c.typ() || d.start() != c.start()) {
+                std.out.printf("MISMATCH fast end in [%s]: seq=(%d,%d,%d) tok=(%d,%d,%d)\n", sql, c.typ(), c.len(), c.start(), t_d, n_d, d.start())
+                failures = failures + 1
+            }
+            break
+        }
+    }
+    c.destroy()
+    d.destroy()
+}
+
+int main() {
+    check("")
+    check("SELECT")
+    check("SELECT 1")
+    check("a;SELECT 1")
+    check("   ")
+    check("/* x */ y")
+    check("'a' 'b'")
+    check("x'01'")
+    check("-- comment\nSELECT")
+    check("NULL")
+    check("select SeLeCt SELECT")
+    check("t.*")
+    check("a.b")
+    check("1.5e3")
+    check("?1")
+    check(":name")
+    check("$var")
+    check("WITHOUT")
+    check("current_timestamp")
+    check("a_b-c")
+    check("123abc")
+    check("WITH a AS (SELECT 1) SELECT * FROM a WHERE x IN (1, 2, 3)")
+    if (failures == 0) { std.out.printf("PASS: 09-next-token\n") }
+    return failures
+}
