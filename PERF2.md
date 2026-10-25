@@ -155,3 +155,76 @@ combined method as public API (packed now, or tuple
 after the compiler gap is fixed), and (2) the compiler
 gap itself (method tuple _ret_t emission) as its own
 story. Neither is decided by this trial.
+
+## 7b-safe trial: kw_hash_code inlined by hand (2026-10-25)
+
+Branch co_SQLite inline-kw (from next-token aaa8a11);
+compiler is perf2 unchanged (come-lang step7b-safe worktree,
+perf2 2193ff5, suite green from clean). NOT merged to main,
+and NOT a primary-scanner change.
+
+What was inlined, and why it is provably safe for this
+one function: kw_hash_code (keyword_hash.co) allocates
+nothing, returns only an int, never writes its b/kwt/kwx
+arguments, never stores or returns a buffer, calls no
+user function, has no module state, and is frameless in
+generated C (no scope push/pop of its own). The manual
+inline binds each argument once (kh_len = j - pos),
+renames every callee local with a kh_ prefix (notably
+kh_j, so it cannot clobber the caller's j), and converts
+its three returns to a single kh_code result plus a
+kh_found flag (the chain-advance read is skipped once
+found, so success-path reads are identical). The only
+semantic change is error-location: the callee's single
+ERR arm now arms at the caller site. Applied identically
+in tk_scan and fast_scan (the two call sites in the
+module); objdump confirms 0 calls to kw_hash_code in
+both inline binaries, vs 2 in perf2 default binaries
+(tk_scan + fast_scan, both present in each binary).
+
+Gate: co_SQLite come test . 9/9 with the perf2 compiler
+(includes differential vs C and fuzz); bench checksums
+exact in all runs: count=2530480 typesum=285119860
+lensum=7962360.
+
+Measure (packed benches, paired interleaved 8 rounds vs
+perf2 nt binaries; default faithful repeated for a
+second 8 rounds):
+- default faithful: old mean ~311 -> new mean ~347
+  (first run round-diff mean +35.8, median +28.5;
+  repeat: old mean ~305 -> new mean ~338, all 8 rounds
+  slower, +17 to +44 ms). REGRESSION, repeatable.
+- default fast: old mean ~177 -> new mean ~168
+  (round-diff mean -8.7 first run, ~-10 repeat).
+  Consistent gain, all rounds negative (one old-binary
+  outlier round, 237 ms, excluded from the repeat mean
+  reading -- the gain holds without it).
+- LTO faithful: old mean ~213 -> new mean ~212
+  (round-diff median -3.5, noise; two outlier rounds
+  both ways). Flat.
+- LTO fast: old mean ~140 -> new mean ~134
+  (round-diff mean -6, median -6). Small, consistent,
+  but LTO perf2 already has no kw_hash_code symbol or
+  call (gcc inlined it), so this is layout noise at
+  most, not an inline gain.
+
+Verdict: the safe subset WORKS for fast and BACKFIRES
+for faithful. Plausible mechanism (hypothesis, not
+proven): tk_scan is already the large hot function and
+the inline grows its region by ~1 KB (fast_scan's start
+address moves 0x17670 -> 0x17ba0 between the binaries),
+so call/header-copy savings are outweighed by code
+growth and register pressure there; fast_scan, with
+direct unchecked reads, nets the call saving instead.
+Consequence for compiler 7b: inlining kw_hash_code by
+a compiler would reproduce this same code shape in
+faithful, so it is NOT a faithful lever. General
+compiler 7b is therefore NOT implemented here: it would
+additionally need cross-file callee-AST loading
+(kw_hash_code lives in a different .co file from its
+callers, and the compiler only sees prototypes at a
+call site), local renaming, and return conversion --
+all for a function whose LTO case is already inlined
+and whose default faithful case regresses. Do not
+pursue 7b for kw_hash_code; the remaining faithful gap
+is in tk_scan itself, not in this call.

@@ -428,7 +428,52 @@ const (
         // ERR(ENOENT) on every miss and cleared it). sql is
         // now unused in tk_scan (kept in the signature so
         // callers don't change).
-        return kw_hash_code(b, pos, j - pos, kwt, kwx), j - pos
+        // 7b-safe trial: kw_hash_code inlined by hand (renamed
+        // locals, single exit). kw_hash_code allocates nothing,
+        // returns only an int, never writes b/kwt/kwx, never
+        // stores or returns a buffer, calls no user function, and
+        // is frameless -- so inlining changes no ownership.
+        // Success-path reads are identical; the callee's single
+        // ERR arm now arms at the caller site instead.
+        int kh_len = j - pos
+        int kh_code = TK_ID
+        if (kh_len >= 2 && kh_len <= 17) {
+            int kh_c0 = int(b[pos])
+            if (kh_c0 < 0) { kh_c0 = kh_c0 + 256 }
+            int kh_c1 = int(b[pos + kh_len - 1])
+            if (kh_c1 < 0) { kh_c1 = kh_c1 + 256 }
+            int kh_h = (((kh_c0 | 32) * 4) ^ ((kh_c1 | 32) * 3) ^ kh_len) % 127
+            int kh_i = kwt[kh_h]
+            bool kh_found = false
+            while (kh_i >= 0 && !kh_found) {
+                if (kwt[274 + kh_i] == kh_len) {
+                    int kh_off = kwt[421 + kh_i]
+                    int kh_f1 = int(b[pos + 1])
+                    if (kh_f1 < 0) { kh_f1 = kh_f1 + 256 }
+                    bool kh_ok = true
+                    if ((kh_c0 & 223) != int(kwx[kh_off]) || (kh_f1 & 223) != int(kwx[kh_off + 1])) {
+                        kh_ok = false
+                    } else {
+                        int kh_j = 2
+                        while (kh_j < kh_len && kh_ok) {
+                            int kh_fj = int(b[pos + kh_j])
+                            if (kh_fj < 0) { kh_fj = kh_fj + 256 }
+                            if ((kh_fj & 223) != int(kwx[kh_off + kh_j])) {
+                                kh_ok = false
+                            } else {
+                                kh_j = kh_j + 1
+                            }
+                        }
+                    }
+                    if (kh_ok) {
+                        kh_code = kwt[568 + kh_i]
+                        kh_found = true
+                    }
+                }
+                if (!kh_found) { kh_i = kwt[127 + kh_i] }
+            }
+        }
+        return kh_code, j - pos
     }
     if (cls == CC_X) {
         if (tk_byte(b, pos + 1) == CP_SQUOTE) {
