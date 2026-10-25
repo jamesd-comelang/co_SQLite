@@ -28,13 +28,14 @@ import string
 
 (int, int) fast_scan(byte[] b, int pos, string sql, int[] kwt, byte[] kwx) {
     // Restructured (parity exhaust): the whole body runs
-    // unchecked. Every read below is guarded by the code's
+    // CHECKED-FAST TRIAL: unchecked block removed; reads are checked.
+    // Every read below is guarded by the code's
     // own logic (a while j < n condition or an explicit
     // if j < n guard), so the raw read is always in
     // bounds; unchecked only drops the redundant macro
     // ternary, it does not drop the logic. Any logic bug
     // here is caught by the 07 differential (fast == slow).
-    unchecked {
+    {
     int n = b.length()
     int c0 = 0
     if (pos >= 0 && pos < n) {
