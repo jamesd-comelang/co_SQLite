@@ -64,12 +64,24 @@ LTO fast needed a re-run: the first batch read 249/156/195
 the value. Gap to Go (131 ms) is now ~26 ms; to Rust
 (80 ms) ~77 ms; to C (33 ms) ~124 ms.
 
-## Queue (co_SQLite-side)
+## F: zero-copy bytes view (TRIED, NO WIN — no code change)
 
-- F: zero-copy bytes view in the bench/cursor path — check
-  open()'s ownership first (a stored view promotes/copies
-  if adopted past the line; byte_array copies are ~8 ms
-  total, so the ceiling is small).
+Checked open()'s ownership first, as planned. The bench
+holds lines[] and one cursor for all 20 passes, so a view
+of a line would be valid for the whole pass — but storing
+it into tz_bytes (instance state) promotes by design:
+come_string_byte_range() is documented as "the owned copy
+of a byte range, used when a byte view reaches a storing
+position and must promote", and field assignments adopt
+to the destination's context (codegen). So
+tz_bytes = sql.byte_view() would copy (view + promote),
+the same ~8 ms as byte_array() (or slightly more). A
+per-token view (no store) would be worse: 2.53M view
+headers vs 80K line copies. No Come .byte_view() method
+exists (only the C primitive), so F would also need a new
+stdlib method for a ~8 ms ceiling that promotion erases.
+Not pursued; a borrow-the-line cursor would be a language
+ownership-model change, not a perf2 step.
 - Cleanup (not perf): remove tk_kw_map/tk_keyword_in once
   keyword_code(string) is switched to the hash (his call,
   since keyword_code is public API).
