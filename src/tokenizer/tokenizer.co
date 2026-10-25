@@ -289,7 +289,7 @@ const (
 // kw is the keyword table). Past-the-end bytes read as 0, like
 // C's NUL.
 
-(int, int) tk_scan(byte[] b, int pos, string sql, map{string, int} kw) {
+(int, int) tk_scan(byte[] b, int pos, string sql, int[] kwt, byte[] kwx) {
     int c0 = tk_byte(b, pos)
     int cls = tk_class(c0)
 
@@ -422,17 +422,13 @@ const (
             // byte >= 0x80: an identifier.
             return TK_ID, tk_id_len(b, pos)
         }
-        // Byte-range lookup (Design 3): no char-index walk,
-        // no substr, no lower — the map lookup lowercases
-        // the range itself. sql is now unused in tk_scan
-        // (kept in the signature so callers don't change).
-        ERR.clear()
-        int v = kw.lookup_lower(b, pos, j - pos)
-        if (ERR.set()) {
-            ERR.clear()
-            return TK_ID, j - pos
-        }
-        return v, j - pos
+        // Keyword hash (perf2): SQLite's keywordCode() table —
+        // no map, no allocation, no ERR (a miss returns TK_ID
+        // without touching ERR; the old lookup_lower path set
+        // ERR(ENOENT) on every miss and cleared it). sql is
+        // now unused in tk_scan (kept in the signature so
+        // callers don't change).
+        return kw_hash_code(b, pos, j - pos, kwt, kwx), j - pos
     }
     if (cls == CC_X) {
         if (tk_byte(b, pos + 1) == CP_SQUOTE) {
@@ -576,7 +572,9 @@ int tk_id_len(byte[] b, int pos) {
     if (byte_pos < 0) { return TK_ILLEGAL, 0 }
     byte[] b = sql.byte_array()
     if (byte_pos >= b.length()) { return TK_ILLEGAL, 0 }
-    return tk_scan(b, byte_pos, sql, tk_kw_map())
+    int[] kwt = build_kw_tables()
+    byte[] kwx = build_kw_text()
+    return tk_scan(b, byte_pos, sql, kwt, kwx)
 }
 
 // token_type_at: the type of the token starting at byte_pos.
@@ -620,18 +618,19 @@ string token_text(string sql, int byte_start, int byte_len) {
 // next() returns false at end of input, with typ() == TK_ILLEGAL
 // and len() == 0 -- the same signal sqlite3GetToken gives on the
 // terminating NUL. The cursor converts the input to bytes once
-// (open) and builds the keyword table once (the kw_table
-// initializer below), where the one-shot get_token pays both
-// costs per call.
+// (open) and builds the keyword hash tables once (the
+// build_kw_tables()/build_kw_text() calls in create() below), where the
+// one-shot get_token pays both costs per call.
 
 // The lifecycle pair (Come COIL-156): a module is
 // instantiable only when it defines both hooks. The
 // cursor state below is per-instance. create() builds the
-// keyword table once per cursor (COIL-151 made map-typed
-// signatures work, so the scanner takes the table as a
-// parameter instead of rebuilding it per identifier).
+// keyword hash tables once per cursor (perf2: the scanner
+// takes the tables as parameters instead of rebuilding
+// them per identifier).
 void create() {
-    kw_table = tk_kw_map()
+    kw_hash_tables = build_kw_tables()
+    kw_hash_text = build_kw_text()
 }
 
 void destroy() {
@@ -639,7 +638,8 @@ void destroy() {
 
 string tz_sql = ""
 byte[] tz_bytes
-map{string, int} kw_table
+int[] kw_hash_tables
+byte[] kw_hash_text
 int tz_pos = 0
 int tz_start = 0
 int tz_typ = 0
@@ -661,7 +661,7 @@ bool next() {
         tz_len = 0
         return false
     }
-    (t, n) = tk_scan(tz_bytes, tz_pos, tz_sql, kw_table)
+    (t, n) = tk_scan(tz_bytes, tz_pos, tz_sql, kw_hash_tables, kw_hash_text)
     tz_start = tz_pos
     tz_typ = t
     tz_len = n

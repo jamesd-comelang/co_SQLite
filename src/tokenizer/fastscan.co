@@ -26,7 +26,7 @@ import string
 //   int c = 0
 //   if (j >= 0 && j < n) { c = int(b[j]); if (c < 0) { c = c + 256 } }
 
-(int, int) fast_scan(byte[] b, int pos, string sql, map{string, int} kw) {
+(int, int) fast_scan(byte[] b, int pos, string sql, int[] kwt, byte[] kwx) {
     // Restructured (parity exhaust): the whole body runs
     // unchecked. Every read below is guarded by the code's
     // own logic (a while j < n condition or an explicit
@@ -475,19 +475,10 @@ import string
             }
             return TK_ID, k - pos
         }
-        // Byte-range lookup, as in tk_scan: no char-index
-        // walk, no substr, no allocation -- the map lookup
-        // lowercases the range itself. The run is pure
-        // keyword letters (ASCII), so this matches the
-        // substr path exactly; sql is now unused here
-        // (kept in the signature so callers don't change).
-        ERR.clear()
-        int v = kw.lookup_lower(b, pos, j - pos)
-        if (ERR.set()) {
-            ERR.clear()
-            return TK_ID, j - pos
-        }
-        return v, j - pos
+        // Keyword hash, as in tk_scan (perf2): no map, no
+        // allocation, no ERR. sql is now unused here (kept
+        // in the signature so callers don't change).
+        return kw_hash_code(b, pos, j - pos, kwt, kwx), j - pos
     }
     // X (CC_X): x'...' blob, else an identifier.
     if (c0 == 'x' || c0 == 'X') {
@@ -556,7 +547,9 @@ import string
     if (byte_pos < 0) { return TK_ILLEGAL, 0 }
     byte[] b = sql.byte_array()
     if (byte_pos >= b.length()) { return TK_ILLEGAL, 0 }
-    return fast_scan(b, byte_pos, sql, tk_kw_map())
+    int[] kwt = build_kw_tables()
+    byte[] kwx = build_kw_text()
+    return fast_scan(b, byte_pos, sql, kwt, kwx)
 }
 
 // Cursor fast entry, mirroring next() on the shared cursor state.
@@ -567,7 +560,7 @@ bool fast_next() {
         tz_len = 0
         return false
     }
-    (t, n) = fast_scan(tz_bytes, tz_pos, tz_sql, kw_table)
+    (t, n) = fast_scan(tz_bytes, tz_pos, tz_sql, kw_hash_tables, kw_hash_text)
     tz_start = tz_pos
     tz_typ = t
     tz_len = n
